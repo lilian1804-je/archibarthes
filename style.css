@@ -17,6 +17,9 @@
     --ab-accent: #d02020;
     --ab-accent-hover: #ad1818;
     --ab-accent-soft: #fef2f2;
+    --ab-badge-violet-bg: #e9d5ff;
+    --ab-badge-violet-text: #2e1065;
+    --ab-badge-violet-border: #8b5cf6;
     --ab-border-strong: #cbd5e1;
     --ab-border-subtle: #e2e8f0;
     --ab-border-dark: #0f172a;
@@ -929,8 +932,9 @@
     display: inline-flex;
     align-items: center;
     padding: 0.3rem 0.65rem;
-    background-color: var(--ab-accent);
-    color: var(--ab-text-inverse);
+    background-color: var(--ab-badge-violet-bg);
+    color: var(--ab-badge-violet-text);
+    border: 1px solid var(--ab-badge-violet-border);
     font-size: 0.75rem;
     font-weight: 800;
     text-transform: uppercase;
