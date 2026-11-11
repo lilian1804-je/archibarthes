@@ -1,0 +1,2128 @@
+(() => {
+  "use strict";
+
+  const ROOT_ID = "archibarthes-root";
+  const DEFAULT_DB = "GF_Copie_EcoleCentrale";
+  const BASE_RECTYPE = "102";
+  const PAGE_LIMIT = 20;
+  const SEARCH_DEBOUNCE_MS = 300;
+  const MOUNT_POLL_INTERVAL_MS = 100;
+  const MOUNT_TIMEOUT_MS = 30000;
+
+  const ALLOWED_HTML_TAGS = new Set([
+    "p",
+    "br",
+    "b",
+    "strong",
+    "i",
+    "em",
+    "u",
+    "sup",
+    "sub",
+    "hr",
+    "blockquote",
+    "ul",
+    "ol",
+    "li",
+    "span",
+    "div",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "td",
+    "th",
+    "a"
+  ]);
+
+  const DROP_CONTENT_TAGS = new Set([
+    "script",
+    "style",
+    "iframe",
+    "object",
+    "embed",
+    "noscript",
+    "svg",
+    "math",
+    "template"
+  ]);
+
+  const FRENCH_MONTHS = [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre"
+  ];
+
+  const SUPPORTS_NATIVE_POPOVER =
+    typeof HTMLElement !== "undefined" &&
+    Object.hasOwn(HTMLElement.prototype, "popover");
+
+  const SUPPORTS_ANCHOR_AREA =
+    typeof CSS !== "undefined" &&
+    typeof CSS.supports === "function" &&
+    CSS.supports("position-area: block-end");
+
+  function resolveConfig(root) {
+    const attrDb = root.getAttribute("data-db");
+    const attrBase = root.getAttribute("data-api-base");
+    const globalCfg =
+      typeof window !== "undefined" && window.ARCHIBARTHES_CONFIG
+        ? window.ARCHIBARTHES_CONFIG
+        : {};
+
+    const db = (attrDb || globalCfg.db || DEFAULT_DB).trim();
+    let heuristBase = "https://heurist.huma-num.fr/heurist";
+
+    if (attrBase || globalCfg.apiBase) {
+      heuristBase = String(attrBase || globalCfg.apiBase).replace(/\/+$/, "");
+    } else if (
+      typeof window !== "undefined" &&
+      window.location &&
+      /^https?:$/i.test(window.location.protocol)
+    ) {
+      const pathMatch = window.location.pathname.match(/^(.*?\/heurist)(?:\/|$)/i);
+      const isHeuristHost = /heurist/i.test(window.location.hostname);
+      if (pathMatch || isHeuristHost) {
+        const prefix = pathMatch ? pathMatch[1] : "/heurist";
+        heuristBase = window.location.origin + prefix;
+      }
+    }
+
+    return {
+      db,
+      heuristBase,
+      recordOutputUrl: `${heuristBase}/hserv/controller/record_output.php`,
+      fileDownloadUrl: `${heuristBase}/hserv/controller/fileDownload.php`,
+      noticeViewUrl: `${heuristBase}/viewers/record/renderRecordData.php`
+    };
+  }
+
+  function normalizeForSearch(str) {
+    return String(str || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  }
+
+  function extractTextFromHtml(html) {
+    if (!html) return "";
+    if (!/<[a-z][\s\S]*>/i.test(html)) {
+      return String(html).trim();
+    }
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(String(html), "text/html");
+    return (doc.body.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function collectDetailEntries(record) {
+    const entries = [];
+    if (!record || typeof record !== "object") return entries;
+
+    if (Array.isArray(record.details)) {
+      for (const item of record.details) {
+        if (!item || typeof item !== "object") continue;
+        entries.push({
+          dtyId: String(item.dty_ID ?? item.dtyId ?? item.id ?? ""),
+          fieldName: String(item.fieldName ?? item.name ?? ""),
+          fieldType: String(item.fieldType ?? item.type ?? ""),
+          value: item.value ?? item.val ?? null,
+          termLabel: item.termLabel ? String(item.termLabel) : ""
+        });
+      }
+    } else if (record.details && typeof record.details === "object") {
+      for (const [key, group] of Object.entries(record.details)) {
+        if (Array.isArray(group)) {
+          for (const val of group) {
+            entries.push({
+              dtyId: String(key),
+              fieldName: "",
+              fieldType: "",
+              value: val,
+              termLabel: ""
+            });
+          }
+        } else if (group && typeof group === "object") {
+          for (const val of Object.values(group)) {
+            entries.push({
+              dtyId: String(key),
+              fieldName: "",
+              fieldType: "",
+              value: val,
+              termLabel: ""
+            });
+          }
+        } else {
+          entries.push({
+            dtyId: String(key),
+            fieldName: "",
+            fieldType: "",
+            value: group,
+            termLabel: ""
+          });
+        }
+      }
+    }
+
+    if (record.d && typeof record.d === "object") {
+      for (const [key, arr] of Object.entries(record.d)) {
+        const list = Array.isArray(arr) ? arr : [arr];
+        for (const val of list) {
+          entries.push({
+            dtyId: String(key),
+            fieldName: "",
+            fieldType: "",
+            value: val,
+            termLabel: ""
+          });
+        }
+      }
+    }
+
+    return entries;
+  }
+
+  function formatIsoDateFr(iso) {
+    const m = String(iso || "").match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/);
+    if (!m) return String(iso || "");
+    const year = m[1];
+    const month = m[2] ? parseInt(m[2], 10) : null;
+    const day = m[3] ? parseInt(m[3], 10) : null;
+
+    if (month && day && month >= 1 && month <= 12) {
+      const dayLabel = day === 1 ? "1er" : String(day);
+      return `${dayLabel} ${FRENCH_MONTHS[month - 1]} ${year}`;
+    }
+    if (month && month >= 1 && month <= 12) {
+      const monthName = FRENCH_MONTHS[month - 1];
+      return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
+    }
+    return year;
+  }
+
+  function parseDateValue(rawVal) {
+    if (rawVal === null || rawVal === undefined || rawVal === "") {
+      return null;
+    }
+
+    if (Array.isArray(rawVal)) {
+      for (const item of rawVal) {
+        const parsed = parseDateValue(item);
+        if (parsed) return parsed;
+      }
+      return null;
+    }
+
+    if (typeof rawVal === "object") {
+      if (rawVal.timestamp && rawVal.timestamp.in) {
+        const base = String(rawVal.timestamp.in).trim();
+        const yearMatch = base.match(/\b(\d{4})\b/);
+        const prefix = rawVal.timestamp.circa ? "v. " : "";
+        return {
+          raw: base,
+          display: prefix + formatIsoDateFr(base),
+          year: yearMatch ? yearMatch[1] : ""
+        };
+      }
+      if (rawVal.start || rawVal.end) {
+        const startStr = rawVal.start?.earliest || rawVal.start?.latest || "";
+        const endStr = rawVal.end?.latest || rawVal.end?.earliest || "";
+        const yearMatch = (startStr || endStr).match(/\b(\d{4})\b/);
+        const sm = String(startStr).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        const em = String(endStr).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        let display = "";
+        if (sm && em && sm[1] === em[1] && sm[2] === em[2] && sm[3] === "01") {
+          const monthIdx = parseInt(sm[2], 10) - 1;
+          const mName = FRENCH_MONTHS[monthIdx] || sm[2];
+          display = `${mName.charAt(0).toUpperCase() + mName.slice(1)} ${sm[1]}`;
+        } else if (startStr && endStr && startStr !== endStr) {
+          display = `${formatIsoDateFr(startStr)} – ${formatIsoDateFr(endStr)}`;
+        } else {
+          display = formatIsoDateFr(startStr || endStr);
+        }
+        return {
+          raw: startStr || endStr,
+          display: display || "Date approximative",
+          year: yearMatch ? yearMatch[1] : ""
+        };
+      }
+      if (rawVal.value) {
+        return parseDateValue(rawVal.value);
+      }
+      return null;
+    }
+
+    const str = String(rawVal).trim();
+    if (!str) return null;
+    const yearMatch = str.match(/\b(\d{4})\b/);
+    return {
+      raw: str,
+      display: formatIsoDateFr(str),
+      year: yearMatch ? yearMatch[1] : ""
+    };
+  }
+
+  function extractEntityList(entries, matchers, directValues) {
+    const items = [];
+    const seen = new Set();
+
+    const addItem = (val, fieldId) => {
+      if (val === null || val === undefined || val === "") return;
+      if (Array.isArray(val)) {
+        for (const v of val) addItem(v, fieldId);
+        return;
+      }
+      if (typeof val === "object") {
+        const id = val.id !== undefined && val.id !== null ? String(val.id) : "";
+        const label = String(
+          val.title ?? val.label ?? val.name ?? val.value ?? ""
+        )
+          .replace(/\s+/g, " ")
+          .trim();
+        if (!label) return;
+        const key = `${id}|${label.toLowerCase()}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        items.push({ id, label, fieldId });
+        return;
+      }
+      const label = String(val).replace(/\s+/g, " ").trim();
+      if (!label) return;
+      const key = `|${label.toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push({ id: "", label, fieldId });
+    };
+
+    for (const val of directValues) {
+      addItem(val, "");
+    }
+
+    for (const det of entries) {
+      if (matchers(det)) {
+        const labelCandidate =
+          det.termLabel && det.termLabel.trim() ? det.termLabel : det.value;
+        if (
+          typeof det.value === "object" &&
+          det.value !== null &&
+          !Array.isArray(det.value)
+        ) {
+          addItem(det.value, det.dtyId);
+        } else {
+          addItem(labelCandidate, det.dtyId);
+        }
+      }
+    }
+
+    return items;
+  }
+
+  function resolveScanUrl(val, config) {
+    if (!val) return null;
+
+    if (typeof val === "string") {
+      const s = val.trim();
+      if (!s) return null;
+      if (/^(https?:)?\/\//i.test(s) || s.startsWith("/")) {
+        return { url: s, filename: "" };
+      }
+      if (/^[a-f0-9]{20,}$/i.test(s)) {
+        return {
+          url: `${config.fileDownloadUrl}?db=${encodeURIComponent(config.db)}&file=${encodeURIComponent(s)}`,
+          filename: ""
+        };
+      }
+      return null;
+    }
+
+    if (Array.isArray(val)) {
+      if (typeof val[0] === "string" && val[0].trim()) {
+        return resolveScanUrl(val[0], config);
+      }
+      return null;
+    }
+
+    if (typeof val === "object") {
+      const fileObj = val.file && typeof val.file === "object" ? val.file : val;
+      const extUrl = fileObj.ulf_ExternalFileReference || fileObj.url || val.url;
+      if (typeof extUrl === "string" && /^(https?:)?\/\//i.test(extUrl.trim())) {
+        return {
+          url: extUrl.trim(),
+          filename: String(fileObj.ulf_OrigFileName || "")
+        };
+      }
+      const obfuscatedId =
+        val.fileid ||
+        fileObj.ulf_ObfuscatedFileID ||
+        fileObj.fileid ||
+        fileObj.id;
+      if (obfuscatedId) {
+        return {
+          url: `${config.fileDownloadUrl}?db=${encodeURIComponent(config.db)}&file=${encodeURIComponent(String(obfuscatedId))}`,
+          filename: String(fileObj.ulf_OrigFileName || "")
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function normalizeRecord(raw, config) {
+    const id = String(raw.rec_ID ?? raw.recID ?? raw.id ?? "");
+    const entries = collectDetailEntries(raw);
+
+    // Numéro BnF
+    let numero = "";
+    const rawNum = raw.numero ?? raw.f1056;
+    if (rawNum !== undefined && rawNum !== null && String(rawNum).trim()) {
+      numero = String(rawNum).trim();
+    } else {
+      const numEntry = entries.find(
+        (d) => d.dtyId === "1056" || /^num[ée]ro$/i.test(d.fieldName.trim())
+      );
+      if (numEntry && numEntry.value !== null && numEntry.value !== undefined) {
+        numero = String(numEntry.value).trim();
+      }
+    }
+    if (!numero) {
+      numero = id || "—";
+    }
+
+    // Titre
+    const title =
+      String(raw.rec_Title ?? raw.recTitle ?? raw.title ?? "").trim() ||
+      "Note sans titre";
+
+    // Date
+    let dateInfo = parseDateValue(raw.Date ?? raw.f9);
+    if (!dateInfo) {
+      const dateEntry = entries.find(
+        (d) =>
+          d.dtyId === "9" ||
+          d.fieldType === "date" ||
+          /date|ann[ée]e/i.test(d.fieldName)
+      );
+      if (dateEntry) {
+        dateInfo = parseDateValue(dateEntry.value);
+      }
+    }
+    if (!dateInfo) {
+      for (const [k, v] of Object.entries(raw)) {
+        if (/date|annee|année/i.test(k) && v) {
+          dateInfo = parseDateValue(v);
+          if (dateInfo) break;
+        }
+      }
+    }
+    if (!dateInfo) {
+      dateInfo = { raw: "", display: "Sans date", year: "" };
+    }
+
+    // Scans du manuscrit
+    const scans = [];
+    const seenScanUrls = new Set();
+    const pushScan = (candidate) => {
+      const resolved = resolveScanUrl(candidate, config);
+      if (resolved && resolved.url && !seenScanUrls.has(resolved.url)) {
+        seenScanUrls.add(resolved.url);
+        scans.push(resolved);
+      }
+    };
+
+    pushScan(raw.f1071_originalvalue);
+    pushScan(raw.f1071);
+
+    const primaryScanEntries = entries.filter(
+      (d) =>
+        d.dtyId === "1071" ||
+        /num[ée]risation/i.test(d.fieldName)
+    );
+    for (const det of primaryScanEntries) {
+      pushScan(det.value);
+    }
+
+    if (scans.length === 0) {
+      const fallbackScanEntries = entries.filter(
+        (d) =>
+          d.dtyId === "39" ||
+          d.fieldType === "file" ||
+          /scan|image/i.test(d.fieldName)
+      );
+      for (const det of fallbackScanEntries) {
+        pushScan(det.value);
+      }
+    }
+
+    // Transcription (priorité stricte à f4 / f4s / retranscription, en excluant le crédit dty_ID=964)
+    let transcriptionHtml = "";
+    if (typeof raw.f4 === "string" && raw.f4.trim()) {
+      transcriptionHtml = raw.f4;
+    } else if (Array.isArray(raw.f4s) && raw.f4s.length > 0) {
+      transcriptionHtml = raw.f4s.filter(Boolean).join(" ");
+    } else {
+      const f4Entries = entries.filter(
+        (d) => d.dtyId === "4" || /^retranscription$/i.test(d.fieldName.trim())
+      );
+      if (f4Entries.length > 0) {
+        transcriptionHtml = f4Entries
+          .map((d) => (d.value !== null && d.value !== undefined ? String(d.value) : ""))
+          .filter((s) => s.trim())
+          .join("\n");
+      }
+    }
+
+    if (!transcriptionHtml) {
+      const fallbackTextEntry = entries.find(
+        (d) =>
+          d.dtyId !== "964" &&
+          /retranscription|transcription|texte/i.test(d.fieldName) &&
+          typeof d.value === "string" &&
+          d.value.trim()
+      );
+      if (fallbackTextEntry) {
+        transcriptionHtml = fallbackTextEntry.value;
+      } else {
+        for (const [k, v] of Object.entries(raw)) {
+          if (
+            /transcription|texte/i.test(k) &&
+            typeof v === "string" &&
+            v.trim()
+          ) {
+            transcriptionHtml = v;
+            break;
+          }
+        }
+      }
+    }
+
+    // Personnes (f16 Personne, f15 Auteurs/artistes cités, f573 fallback)
+    const persons = extractEntityList(
+      entries,
+      (d) =>
+        d.dtyId === "16" ||
+        d.dtyId === "15" ||
+        d.dtyId === "573" ||
+        /personne|auteur/i.test(d.fieldName),
+      [raw.Personne, raw.f573]
+    );
+
+    // Lieux (f238 Lieux, f375 fallback)
+    const places = extractEntityList(
+      entries,
+      (d) =>
+        d.dtyId === "238" ||
+        d.dtyId === "375" ||
+        /^lieux?$/i.test(d.fieldName.trim()),
+      [raw.Lieux, raw.f375]
+    );
+
+    // Genres (f1073 genre, f1107 fallback)
+    const genres = extractEntityList(
+      entries,
+      (d) =>
+        d.dtyId === "1073" ||
+        d.dtyId === "1107" ||
+        /^genre$/i.test(d.fieldName.trim()),
+      [raw.genre, raw.f1107]
+    ).map((g) => ({
+      ...g,
+      label: g.label.replace(/\.\(/g, " · (")
+    }));
+
+    // Cote BnF (f1218 ou f977 Cote d'origine, sinon Fonds Roland Barthes)
+    let cote = "";
+    const directCote = raw.f1218;
+    if (typeof directCote === "string" && directCote.trim()) {
+      cote = directCote.trim();
+    } else {
+      const coteEntry = entries.find(
+        (d) =>
+          d.dtyId === "1218" ||
+          d.dtyId === "977" ||
+          /cote/i.test(d.fieldName)
+      );
+      if (coteEntry && coteEntry.value) {
+        const valStr =
+          typeof coteEntry.value === "object"
+            ? String(coteEntry.value.title ?? coteEntry.value.label ?? "").trim()
+            : String(coteEntry.value).trim();
+        if (valStr) {
+          cote = /^fonds/i.test(valStr)
+            ? valStr
+            : `Fonds Roland Barthes — ${valStr}`;
+        }
+      }
+    }
+    if (!cote) {
+      cote = "Fonds Roland Barthes";
+    }
+
+    // URL vers la notice complète
+    const rawRecUrl = String(raw.recURL ?? raw.rec_URL ?? "").trim();
+    const noticeUrl =
+      rawRecUrl && (/^https?:\/\//i.test(rawRecUrl) || rawRecUrl.startsWith("/"))
+        ? rawRecUrl
+        : `${config.noticeViewUrl}?db=${encodeURIComponent(config.db)}&recID=${encodeURIComponent(id)}`;
+
+    return {
+      id,
+      numero,
+      title,
+      date: dateInfo,
+      scans,
+      transcriptionHtml,
+      transcriptionPlain: extractTextFromHtml(transcriptionHtml),
+      persons,
+      places,
+      genres,
+      cote,
+      noticeUrl
+    };
+  }
+
+  function sanitizeNodeInto(sourceNode, targetParent, recordId) {
+    if (sourceNode.nodeType === Node.TEXT_NODE) {
+      targetParent.appendChild(document.createTextNode(sourceNode.nodeValue || ""));
+      return;
+    }
+
+    if (sourceNode.nodeType !== Node.ELEMENT_NODE) return;
+
+    const tag = sourceNode.tagName.toLowerCase();
+    if (DROP_CONTENT_TAGS.has(tag)) return;
+
+    if (!ALLOWED_HTML_TAGS.has(tag)) {
+      for (const child of sourceNode.childNodes) {
+        sanitizeNodeInto(child, targetParent, recordId);
+      }
+      return;
+    }
+
+    const cleanEl = document.createElement(tag);
+
+    if (tag === "a") {
+      const href = (sourceNode.getAttribute("href") || "").trim();
+      const nameAttr = (sourceNode.getAttribute("name") || "").trim();
+      const idAttr = (sourceNode.getAttribute("id") || "").trim();
+
+      if (href.startsWith("#") && href.length > 1) {
+        cleanEl.setAttribute("href", `#ab-${recordId}-${href.slice(1)}`);
+      } else if (/^https?:\/\//i.test(href)) {
+        cleanEl.setAttribute("href", href);
+        cleanEl.setAttribute("target", "_blank");
+        cleanEl.setAttribute("rel", "noopener noreferrer");
+      }
+
+      if (idAttr) {
+        cleanEl.setAttribute("id", `ab-${recordId}-${idAttr}`);
+      } else if (nameAttr) {
+        cleanEl.setAttribute("id", `ab-${recordId}-${nameAttr}`);
+      }
+    }
+
+    for (const child of sourceNode.childNodes) {
+      sanitizeNodeInto(child, cleanEl, recordId);
+    }
+
+    targetParent.appendChild(cleanEl);
+  }
+
+  function finalizeSanitizedLinks(container, recordId) {
+    const anchors = container.querySelectorAll("a");
+    for (const a of anchors) {
+      const href = (a.getAttribute("href") || "").trim();
+      const idAttr = (a.getAttribute("id") || "").trim();
+      const nameAttr = (a.getAttribute("name") || "").trim();
+
+      if (idAttr && !idAttr.startsWith(`ab-${recordId}-`)) {
+        a.setAttribute("id", `ab-${recordId}-${idAttr}`);
+      } else if (!idAttr && nameAttr) {
+        a.setAttribute("id", `ab-${recordId}-${nameAttr}`);
+      }
+      a.removeAttribute("name");
+
+      if (href.startsWith("#") && href.length > 1) {
+        const targetSlug = href.slice(1);
+        if (!targetSlug.startsWith(`ab-${recordId}-`)) {
+          a.setAttribute("href", `#ab-${recordId}-${targetSlug}`);
+        }
+      } else if (/^https?:\/\//i.test(href)) {
+        a.setAttribute("href", href);
+        a.setAttribute("target", "_blank");
+        a.setAttribute("rel", "noopener noreferrer");
+      } else {
+        a.removeAttribute("href");
+      }
+    }
+  }
+
+  function renderSanitizedTranscription(container, rawHtml, recordId) {
+    container.replaceChildren();
+
+    if (!rawHtml || !rawHtml.trim()) {
+      const emptyP = document.createElement("p");
+      emptyP.className = "ab-transcription-empty";
+      emptyP.textContent = "Transcription non disponible pour cette fiche.";
+      container.appendChild(emptyP);
+      return;
+    }
+
+    if (!/<[a-z][\s\S]*>/i.test(rawHtml)) {
+      const paragraphs = rawHtml.split(/\r?\n+/).filter((p) => p.trim());
+      for (const line of paragraphs) {
+        const p = document.createElement("p");
+        p.textContent = line.trim();
+        container.appendChild(p);
+      }
+      return;
+    }
+
+    if (typeof Element !== "undefined" && "setHTML" in Element.prototype) {
+      try {
+        container.setHTML(rawHtml, {
+          sanitizer: {
+            elements: Array.from(ALLOWED_HTML_TAGS),
+            attributes: ["href", "id", "name"]
+          }
+        });
+        finalizeSanitizedLinks(container, recordId);
+        if (container.textContent && container.textContent.trim()) {
+          return;
+        }
+        container.replaceChildren();
+      } catch (_err) {
+        container.replaceChildren();
+      }
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rawHtml, "text/html");
+    const frag = document.createDocumentFragment();
+
+    for (const child of doc.body.childNodes) {
+      sanitizeNodeInto(child, frag, recordId);
+    }
+
+    if (!frag.textContent || !frag.textContent.trim()) {
+      const emptyP = document.createElement("p");
+      emptyP.className = "ab-transcription-empty";
+      emptyP.textContent = "Transcription non disponible pour cette fiche.";
+      container.appendChild(emptyP);
+      return;
+    }
+
+    container.appendChild(frag);
+  }
+
+  function buildFacetsFromRecords(records) {
+    const dateCounts = new Map();
+    const personMap = new Map();
+    const placeMap = new Map();
+
+    for (const rec of records) {
+      if (rec.date && rec.date.year) {
+        const y = rec.date.year;
+        const entry = dateCounts.get(y) || {
+          key: y,
+          label: y,
+          count: 0
+        };
+        entry.count += 1;
+        dateCounts.set(y, entry);
+      }
+
+      for (const p of rec.persons) {
+        const mapKey = p.id ? `id:${p.id}` : `name:${normalizeForSearch(p.label)}`;
+        const entry = personMap.get(mapKey) || {
+          key: mapKey,
+          id: p.id,
+          label: p.label,
+          fieldIds: new Set(),
+          count: 0
+        };
+        if (p.fieldId) entry.fieldIds.add(p.fieldId);
+        entry.count += 1;
+        personMap.set(mapKey, entry);
+      }
+
+      for (const l of rec.places) {
+        const mapKey = l.id ? `id:${l.id}` : `name:${normalizeForSearch(l.label)}`;
+        const entry = placeMap.get(mapKey) || {
+          key: mapKey,
+          id: l.id,
+          label: l.label,
+          fieldIds: new Set(),
+          count: 0
+        };
+        if (l.fieldId) entry.fieldIds.add(l.fieldId);
+        entry.count += 1;
+        placeMap.set(mapKey, entry);
+      }
+    }
+
+    const dates = Array.from(dateCounts.values()).sort((a, b) =>
+      a.label.localeCompare(b.label, "fr", { numeric: true })
+    );
+
+    const sortByCountThenAlpha = (a, b) =>
+      b.count - a.count || a.label.localeCompare(b.label, "fr");
+
+    const persons = Array.from(personMap.values()).sort(sortByCountThenAlpha);
+    const places = Array.from(placeMap.values()).sort(sortByCountThenAlpha);
+
+    return { dates, persons, places };
+  }
+
+  function buildHeuristQuery(state, facets) {
+    const clauses = [{ t: BASE_RECTYPE }];
+    const humanParts = [`t:${BASE_RECTYPE}`];
+
+    const tokens = state.searchQuery
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (tokens.length > 0) {
+      for (const token of tokens) {
+        clauses.push({ any: [{ title: token }, { f: token }] });
+      }
+      humanParts.push(`(${tokens.map((t) => `"${t}"`).join(" AND ")})`);
+    }
+
+    // Facette Date (OR entre dates sélectionnées)
+    if (state.selected.dates.size > 0) {
+      const selectedDates = Array.from(state.selected.dates);
+      const datePredicates = selectedDates.map((y) => ({ "f:9": y }));
+      clauses.push(
+        datePredicates.length === 1 ? datePredicates[0] : { any: datePredicates }
+      );
+      humanParts.push(`(${selectedDates.map((y) => `f:9:${y}`).join(" OR ")})`);
+    }
+
+    // Facette Personne (OR entre personnes sélectionnées)
+    if (state.selected.persons.size > 0) {
+      const personByKey = new Map(facets.persons.map((p) => [p.key, p]));
+      const personPredicates = [];
+      const personLabels = [];
+
+      for (const key of state.selected.persons) {
+        const option = personByKey.get(key);
+        if (!option) continue;
+        personLabels.push(`"${option.label}"`);
+        if (option.id) {
+          const fieldIds = Array.from(option.fieldIds).filter((fid) =>
+            ["15", "16", "573"].includes(fid)
+          );
+          const targets = fieldIds.length > 0 ? fieldIds : ["16"];
+          for (const fid of targets) {
+            personPredicates.push({ [`f:${fid}`]: option.id });
+          }
+        } else {
+          personPredicates.push({ "f:573": option.label });
+          personPredicates.push({ f: option.label });
+        }
+      }
+
+      if (personPredicates.length > 0) {
+        clauses.push(
+          personPredicates.length === 1
+            ? personPredicates[0]
+            : { any: personPredicates }
+        );
+        humanParts.push(
+          `(${personLabels.map((l) => `Personne:${l}`).join(" OR ")})`
+        );
+      }
+    }
+
+    // Facette Lieu (OR entre lieux sélectionnés)
+    if (state.selected.places.size > 0) {
+      const placeByKey = new Map(facets.places.map((l) => [l.key, l]));
+      const placePredicates = [];
+      const placeLabels = [];
+
+      for (const key of state.selected.places) {
+        const option = placeByKey.get(key);
+        if (!option) continue;
+        placeLabels.push(`"${option.label}"`);
+        if (option.id) {
+          const fieldIds = Array.from(option.fieldIds).filter((fid) =>
+            ["238", "375"].includes(fid)
+          );
+          const targets = fieldIds.length > 0 ? fieldIds : ["238"];
+          for (const fid of targets) {
+            placePredicates.push({ [`f:${fid}`]: option.id });
+          }
+        } else {
+          placePredicates.push({ "f:375": option.label });
+          placePredicates.push({ f: option.label });
+        }
+      }
+
+      if (placePredicates.length > 0) {
+        clauses.push(
+          placePredicates.length === 1
+            ? placePredicates[0]
+            : { any: placePredicates }
+        );
+        humanParts.push(`(${placeLabels.map((l) => `Lieu:${l}`).join(" OR ")})`);
+      }
+    }
+
+    const q = clauses.length === 1 ? `t:${BASE_RECTYPE}` : JSON.stringify(clauses);
+    return {
+      q,
+      humanQuery: humanParts.join(" AND ")
+    };
+  }
+
+  function createSvgIcon(type) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "16");
+    svg.setAttribute("height", "16");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2.2");
+    svg.setAttribute("stroke-linecap", "square");
+    svg.setAttribute("stroke-linejoin", "miter");
+    svg.setAttribute("aria-hidden", "true");
+
+    if (type === "search") {
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", "11");
+      circle.setAttribute("cy", "11");
+      circle.setAttribute("r", "7");
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", "16.5");
+      line.setAttribute("y1", "16.5");
+      line.setAttribute("x2", "21");
+      line.setAttribute("y2", "21");
+      svg.append(circle, line);
+    } else if (type === "chevron") {
+      svg.setAttribute("width", "14");
+      svg.setAttribute("height", "14");
+      const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      poly.setAttribute("points", "6 9 12 15 18 9");
+      svg.appendChild(poly);
+    }
+    return svg;
+  }
+
+  function mountApp(root) {
+    if (!root || root.dataset.abMounted === "true") return;
+    root.dataset.abMounted = "true";
+
+    const config = resolveConfig(root);
+    const isApplePlatform =
+      typeof navigator !== "undefined" &&
+      /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || "");
+
+    const state = {
+      searchQuery: "",
+      offset: 0,
+      limit: PAGE_LIMIT,
+      totalCount: 0,
+      records: [],
+      isLoading: true,
+      error: null,
+      facetsInitialized: false,
+      facets: { dates: [], persons: [], places: [] },
+      selected: {
+        dates: new Set(),
+        persons: new Set(),
+        places: new Set()
+      },
+      popoverSearch: {
+        dates: "",
+        persons: "",
+        places: ""
+      }
+    };
+
+    const queryCache = new Map();
+    let activeAbortController = null;
+    let debounceTimer = null;
+
+    // Construction du squelette DOM
+    root.replaceChildren();
+    const shell = document.createElement("section");
+    shell.className = "ab-shell";
+    shell.setAttribute("aria-label", "Explorateur ArchiBarthes — Fiches de Roland Barthes");
+
+    // 1. En-tête éditorial
+    const masthead = document.createElement("header");
+    masthead.className = "ab-masthead";
+
+    const brand = document.createElement("div");
+    brand.className = "ab-brand";
+    const brandMark = document.createElement("div");
+    brandMark.className = "ab-brand-mark";
+    brandMark.setAttribute("aria-hidden", "true");
+
+    const titleGroup = document.createElement("div");
+    const kicker = document.createElement("p");
+    kicker.className = "ab-kicker";
+    kicker.textContent = "Heurist · Édition critique numérique";
+
+    const h1 = document.createElement("h1");
+    h1.className = "ab-title";
+    h1.textContent = "ArchiBarthes — Le Grand Fichier";
+
+    const subtitle = document.createElement("p");
+    subtitle.className = "ab-subtitle";
+    subtitle.textContent =
+      "Fonds Roland Barthes · Bibliothèque nationale de France (NAF 28630)";
+
+    titleGroup.append(kicker, h1, subtitle);
+    brand.append(brandMark, titleGroup);
+
+    const corpusBadge = document.createElement("div");
+    corpusBadge.className = "ab-corpus-badge";
+    corpusBadge.textContent = "Corpus t:102";
+
+    masthead.append(brand, corpusBadge);
+
+    // 2. Moteur de recherche & filtres (<search>)
+    const searchLandmark = document.createElement("search");
+    searchLandmark.className = "ab-controls";
+    searchLandmark.setAttribute("aria-label", "Recherche et filtres des fiches");
+
+    const searchForm = document.createElement("form");
+    searchForm.className = "ab-search-form";
+    searchForm.noValidate = true;
+
+    const searchLabel = document.createElement("label");
+    searchLabel.className = "ab-visually-hidden";
+    searchLabel.setAttribute("for", "ab-search-input");
+    searchLabel.textContent = "Rechercher dans les fiches de Roland Barthes";
+
+    const searchField = document.createElement("div");
+    searchField.className = "ab-search-field";
+
+    const searchIconWrap = document.createElement("span");
+    searchIconWrap.className = "ab-search-icon";
+    searchIconWrap.appendChild(createSvgIcon("search"));
+
+    const searchInput = document.createElement("input");
+    searchInput.id = "ab-search-input";
+    searchInput.className = "ab-search-input";
+    searchInput.type = "search";
+    searchInput.name = "q";
+    searchInput.autocomplete = "off";
+    searchInput.placeholder =
+      "Rechercher par mot-clé, transcription, numéro BnF, personne ou lieu…";
+
+    const searchClearBtn = document.createElement("button");
+    searchClearBtn.type = "button";
+    searchClearBtn.className = "ab-search-clear";
+    searchClearBtn.setAttribute("aria-label", "Effacer la recherche");
+    searchClearBtn.textContent = "×";
+    searchClearBtn.hidden = true;
+
+    const kbdHint = document.createElement("kbd");
+    kbdHint.className = "ab-kbd-hint";
+    kbdHint.textContent = isApplePlatform ? "⌘K" : "Ctrl+K";
+    kbdHint.setAttribute("aria-hidden", "true");
+
+    searchField.append(searchIconWrap, searchInput, searchClearBtn, kbdHint);
+
+    const searchSubmitBtn = document.createElement("button");
+    searchSubmitBtn.type = "submit";
+    searchSubmitBtn.className = "ab-search-submit";
+    searchSubmitBtn.textContent = "Rechercher";
+
+    searchForm.append(searchLabel, searchField, searchSubmitBtn);
+
+    // Barre horizontale de filtres
+    const filterBar = document.createElement("div");
+    filterBar.className = "ab-filter-bar";
+
+    const filterLabel = document.createElement("span");
+    filterLabel.className = "ab-filter-label";
+    filterLabel.textContent = "Filtrer par :";
+    filterBar.appendChild(filterLabel);
+
+    const facetConfigs = [
+      { key: "dates", label: "Date", popoverId: "ab-popover-dates" },
+      { key: "persons", label: "Personne", popoverId: "ab-popover-persons" },
+      { key: "places", label: "Lieu", popoverId: "ab-popover-places" }
+    ];
+
+    const facetRefs = {};
+
+    for (const fc of facetConfigs) {
+      const group = document.createElement("div");
+      group.className = "ab-filter-group";
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.id = `ab-trigger-${fc.key}`;
+      btn.className = "ab-filter-btn";
+      btn.setAttribute("aria-expanded", "false");
+      btn.setAttribute("aria-controls", fc.popoverId);
+      if (SUPPORTS_NATIVE_POPOVER) {
+        btn.setAttribute("popovertarget", fc.popoverId);
+      }
+
+      const btnText = document.createElement("span");
+      btnText.textContent = fc.label;
+
+      const badge = document.createElement("span");
+      badge.className = "ab-filter-badge";
+      badge.hidden = true;
+      badge.textContent = "0";
+
+      const chev = document.createElement("span");
+      chev.className = "ab-filter-chevron";
+      chev.appendChild(createSvgIcon("chevron"));
+
+      btn.append(btnText, badge, chev);
+
+      const popover = document.createElement("div");
+      popover.id = fc.popoverId;
+      popover.className = "ab-popover";
+      if (SUPPORTS_NATIVE_POPOVER) {
+        popover.setAttribute("popover", "auto");
+      }
+      popover.setAttribute("role", "region");
+      popover.setAttribute("aria-label", `Filtrer par ${fc.label}`);
+
+      const popHead = document.createElement("div");
+      popHead.className = "ab-popover-head";
+
+      const popSearchLabel = document.createElement("label");
+      popSearchLabel.className = "ab-visually-hidden";
+      popSearchLabel.setAttribute("for", `ab-pop-search-${fc.key}`);
+      popSearchLabel.textContent = `Filtrer les options pour ${fc.label}`;
+
+      const popSearch = document.createElement("input");
+      popSearch.id = `ab-pop-search-${fc.key}`;
+      popSearch.className = "ab-popover-search";
+      popSearch.type = "search";
+      popSearch.placeholder = `Filtrer (${fc.label.toLowerCase()})…`;
+
+      const popClear = document.createElement("button");
+      popClear.type = "button";
+      popClear.className = "ab-popover-clear";
+      popClear.textContent = "Effacer";
+      popClear.hidden = true;
+
+      popHead.append(popSearchLabel, popSearch, popClear);
+
+      const optionsFieldset = document.createElement("fieldset");
+      optionsFieldset.className = "ab-popover-options";
+
+      const legend = document.createElement("legend");
+      legend.className = "ab-visually-hidden";
+      legend.textContent = `Options de filtre ${fc.label}`;
+      optionsFieldset.appendChild(legend);
+
+      popover.append(popHead, optionsFieldset);
+      group.append(btn, popover);
+      filterBar.appendChild(group);
+
+      facetRefs[fc.key] = {
+        key: fc.key,
+        label: fc.label,
+        btn,
+        badge,
+        popover,
+        popSearch,
+        popClear,
+        optionsFieldset
+      };
+    }
+
+    const resetBtn = document.createElement("button");
+    resetBtn.type = "button";
+    resetBtn.className = "ab-reset-btn";
+    resetBtn.textContent = "Réinitialiser";
+    resetBtn.hidden = true;
+    filterBar.appendChild(resetBtn);
+
+    const activeChips = document.createElement("div");
+    activeChips.className = "ab-active-chips";
+    activeChips.setAttribute("aria-label", "Filtres actifs");
+    activeChips.hidden = true;
+
+    searchLandmark.append(searchForm, filterBar, activeChips);
+
+    // 3. Barre de statut et pagination supérieure
+    const statusBar = document.createElement("div");
+    statusBar.className = "ab-status-bar";
+
+    const statusSummary = document.createElement("div");
+    statusSummary.className = "ab-status-summary";
+
+    const statusCount = document.createElement("span");
+    statusCount.className = "ab-status-count";
+    statusCount.setAttribute("aria-live", "polite");
+    statusCount.textContent = "Chargement du corpus…";
+
+    const statusPage = document.createElement("span");
+    statusPage.className = "ab-status-page";
+    statusPage.textContent = "Page 1 sur 1";
+
+    statusSummary.append(statusCount, statusPage);
+
+    const createPaginationNav = (ariaLabel) => {
+      const nav = document.createElement("nav");
+      nav.className = "ab-pagination";
+      nav.setAttribute("aria-label", ariaLabel);
+
+      const prevBtn = document.createElement("button");
+      prevBtn.type = "button";
+      prevBtn.className = "ab-page-btn";
+      prevBtn.textContent = "← Précédent";
+      prevBtn.disabled = true;
+
+      const nextBtn = document.createElement("button");
+      nextBtn.type = "button";
+      nextBtn.className = "ab-page-btn";
+      nextBtn.textContent = "Suivant →";
+      nextBtn.disabled = true;
+
+      nav.append(prevBtn, nextBtn);
+      return { nav, prevBtn, nextBtn };
+    };
+
+    const topPag = createPaginationNav("Pagination supérieure");
+    statusBar.append(statusSummary, topPag.nav);
+
+    // 4. Zone de résultats
+    const resultsRegion = document.createElement("div");
+    resultsRegion.className = "ab-results-region";
+
+    // 5. Pagination inférieure
+    const bottomPagWrap = document.createElement("div");
+    bottomPagWrap.className = "ab-bottom-pagination";
+    bottomPagWrap.hidden = true;
+
+    const bottomPageText = document.createElement("span");
+    bottomPageText.className = "ab-status-page";
+    bottomPageText.textContent = "Page 1 sur 1";
+
+    const bottomPag = createPaginationNav("Pagination inférieure");
+    bottomPagWrap.append(bottomPageText, bottomPag.nav);
+
+    shell.append(masthead, searchLandmark, statusBar, resultsRegion, bottomPagWrap);
+    root.appendChild(shell);
+
+    // --- Positionnement et gestion des popovers ---
+    function positionPopoverFallback(trigger, popover) {
+      if (SUPPORTS_ANCHOR_AREA) return;
+      const rect = trigger.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const popWidth = Math.min(320, vw - 24);
+      const estimatedHeight = 340;
+
+      let left = rect.left;
+      if (left + popWidth > vw - 12) {
+        left = Math.max(12, rect.right - popWidth);
+      }
+      left = Math.max(12, left);
+
+      let top = rect.bottom + 6;
+      if (top + estimatedHeight > vh - 12 && rect.top - estimatedHeight - 6 > 12) {
+        top = Math.max(12, rect.top - estimatedHeight - 6);
+      }
+
+      popover.style.setProperty("--ab-popover-top", `${Math.round(top)}px`);
+      popover.style.setProperty("--ab-popover-left", `${Math.round(left)}px`);
+    }
+
+    function closeAllManualPopovers(exceptKey) {
+      for (const fc of facetConfigs) {
+        if (fc.key === exceptKey) continue;
+        const ref = facetRefs[fc.key];
+        if (!SUPPORTS_NATIVE_POPOVER) {
+          ref.popover.classList.remove("is-open");
+          ref.btn.setAttribute("aria-expanded", "false");
+        } else if (ref.popover.matches(":popover-open")) {
+          ref.popover.hidePopover();
+        }
+      }
+    }
+
+    for (const fc of facetConfigs) {
+      const ref = facetRefs[fc.key];
+
+      if (SUPPORTS_NATIVE_POPOVER) {
+        ref.popover.addEventListener("beforetoggle", (event) => {
+          const opening = event.newState === "open";
+          ref.btn.setAttribute("aria-expanded", opening ? "true" : "false");
+          if (opening) {
+            positionPopoverFallback(ref.btn, ref.popover);
+          }
+        });
+
+        ref.popover.addEventListener("toggle", (event) => {
+          const isOpen = event.newState === "open";
+          ref.btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+          if (isOpen) {
+            positionPopoverFallback(ref.btn, ref.popover);
+            requestAnimationFrame(() => {
+              ref.popSearch.focus({ preventScroll: true });
+            });
+          }
+        });
+      } else {
+        ref.btn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const willOpen = !ref.popover.classList.contains("is-open");
+          closeAllManualPopovers(fc.key);
+          if (willOpen) {
+            positionPopoverFallback(ref.btn, ref.popover);
+            ref.popover.classList.add("is-open");
+            ref.btn.setAttribute("aria-expanded", "true");
+            requestAnimationFrame(() => {
+              ref.popSearch.focus({ preventScroll: true });
+            });
+          } else {
+            ref.popover.classList.remove("is-open");
+            ref.btn.setAttribute("aria-expanded", "false");
+          }
+        });
+
+        ref.popover.addEventListener("click", (event) => {
+          event.stopPropagation();
+        });
+      }
+
+      ref.popSearch.addEventListener("input", () => {
+        state.popoverSearch[fc.key] = ref.popSearch.value;
+        renderFacetOptions(fc.key);
+      });
+
+      ref.popClear.addEventListener("click", () => {
+        if (state.selected[fc.key].size === 0) return;
+        state.selected[fc.key].clear();
+        state.offset = 0;
+        updateFilterIndicators();
+        renderFacetOptions(fc.key);
+        executeSearch();
+      });
+    }
+
+    if (!SUPPORTS_NATIVE_POPOVER) {
+      document.addEventListener("pointerdown", (event) => {
+        const target = event.target;
+        if (!target || !root.contains(target)) {
+          closeAllManualPopovers(null);
+          return;
+        }
+        const insideGroup = target.closest(".ab-filter-group");
+        if (!insideGroup) {
+          closeAllManualPopovers(null);
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          for (const fc of facetConfigs) {
+            const ref = facetRefs[fc.key];
+            if (ref.popover.classList.contains("is-open")) {
+              closeAllManualPopovers(null);
+              ref.btn.focus();
+              break;
+            }
+          }
+        }
+      });
+    }
+
+    window.addEventListener(
+      "resize",
+      () => {
+        for (const fc of facetConfigs) {
+          const ref = facetRefs[fc.key];
+          const isOpen = SUPPORTS_NATIVE_POPOVER
+            ? ref.popover.matches(":popover-open")
+            : ref.popover.classList.contains("is-open");
+          if (isOpen) {
+            positionPopoverFallback(ref.btn, ref.popover);
+          }
+        }
+      },
+      { passive: true }
+    );
+
+    // --- Rendu des options dans chaque popover ---
+    function renderFacetOptions(facetKey) {
+      const ref = facetRefs[facetKey];
+      const options = state.facets[facetKey] || [];
+      const filterTerm = normalizeForSearch(state.popoverSearch[facetKey]);
+      const selectedSet = state.selected[facetKey];
+
+      const fieldset = ref.optionsFieldset;
+      const legend = fieldset.querySelector("legend");
+      fieldset.replaceChildren();
+      if (legend) fieldset.appendChild(legend);
+
+      if (!state.facetsInitialized && state.isLoading) {
+        const loadingMsg = document.createElement("p");
+        loadingMsg.className = "ab-popover-empty";
+        loadingMsg.textContent = "Chargement des options…";
+        fieldset.appendChild(loadingMsg);
+        return;
+      }
+
+      const filtered = filterTerm
+        ? options.filter((opt) => normalizeForSearch(opt.label).includes(filterTerm))
+        : options;
+
+      if (filtered.length === 0) {
+        const emptyMsg = document.createElement("p");
+        emptyMsg.className = "ab-popover-empty";
+        emptyMsg.textContent = "Aucune option correspondante.";
+        fieldset.appendChild(emptyMsg);
+        return;
+      }
+
+      const frag = document.createDocumentFragment();
+      for (let i = 0; i < filtered.length; i += 1) {
+        const opt = filtered[i];
+        const rowId = `ab-opt-${facetKey}-${i}`;
+
+        const rowLabel = document.createElement("label");
+        rowLabel.className = "ab-option-row";
+        rowLabel.setAttribute("for", rowId);
+
+        const left = document.createElement("span");
+        left.className = "ab-option-left";
+
+        const checkbox = document.createElement("input");
+        checkbox.id = rowId;
+        checkbox.type = "checkbox";
+        checkbox.className = "ab-checkbox";
+        checkbox.value = opt.key;
+        checkbox.checked = selectedSet.has(opt.key);
+
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) {
+            selectedSet.add(opt.key);
+          } else {
+            selectedSet.delete(opt.key);
+          }
+          state.offset = 0;
+          updateFilterIndicators();
+          executeSearch();
+        });
+
+        const textSpan = document.createElement("span");
+        textSpan.className = "ab-option-text";
+        textSpan.textContent = opt.label;
+
+        left.append(checkbox, textSpan);
+
+        const countSpan = document.createElement("span");
+        countSpan.className = "ab-option-count";
+        countSpan.textContent = String(opt.count);
+
+        rowLabel.append(left, countSpan);
+        frag.appendChild(rowLabel);
+      }
+
+      fieldset.appendChild(frag);
+    }
+
+    function renderAllFacetOptions() {
+      for (const fc of facetConfigs) {
+        renderFacetOptions(fc.key);
+      }
+    }
+
+    function updateFilterIndicators() {
+      let totalSelected = 0;
+      for (const fc of facetConfigs) {
+        const count = state.selected[fc.key].size;
+        totalSelected += count;
+        const ref = facetRefs[fc.key];
+        ref.badge.textContent = String(count);
+        ref.badge.hidden = count === 0;
+        ref.popClear.hidden = count === 0;
+        ref.btn.classList.toggle("has-selection", count > 0);
+      }
+
+      const hasAnyFilter = totalSelected > 0 || state.searchQuery.trim().length > 0;
+      resetBtn.hidden = !hasAnyFilter;
+      searchClearBtn.hidden = searchInput.value.length === 0;
+
+      // Puces actives
+      activeChips.replaceChildren();
+      if (!hasAnyFilter) {
+        activeChips.hidden = true;
+        return;
+      }
+
+      const frag = document.createDocumentFragment();
+
+      if (state.searchQuery.trim()) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "ab-chip";
+        chip.setAttribute("aria-label", `Retirer le mot-clé ${state.searchQuery.trim()}`);
+
+        const typeSpan = document.createElement("span");
+        typeSpan.className = "ab-chip-type";
+        typeSpan.textContent = "Texte";
+
+        const valSpan = document.createElement("span");
+        valSpan.textContent = `"${state.searchQuery.trim()}" ×`;
+
+        chip.append(typeSpan, valSpan);
+        chip.addEventListener("click", () => {
+          searchInput.value = "";
+          state.searchQuery = "";
+          state.offset = 0;
+          updateFilterIndicators();
+          executeSearch();
+        });
+        frag.appendChild(chip);
+      }
+
+      for (const fc of facetConfigs) {
+        const byKey = new Map(state.facets[fc.key].map((o) => [o.key, o]));
+        for (const key of state.selected[fc.key]) {
+          const opt = byKey.get(key);
+          const labelText = opt ? opt.label : key;
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "ab-chip";
+          chip.setAttribute("aria-label", `Retirer le filtre ${fc.label} ${labelText}`);
+
+          const typeSpan = document.createElement("span");
+          typeSpan.className = "ab-chip-type";
+          typeSpan.textContent = fc.label;
+
+          const valSpan = document.createElement("span");
+          valSpan.textContent = `${labelText} ×`;
+
+          chip.append(typeSpan, valSpan);
+          chip.addEventListener("click", () => {
+            state.selected[fc.key].delete(key);
+            state.offset = 0;
+            updateFilterIndicators();
+            renderFacetOptions(fc.key);
+            executeSearch();
+          });
+          frag.appendChild(chip);
+        }
+      }
+
+      activeChips.appendChild(frag);
+      activeChips.hidden = false;
+    }
+
+    // --- Rendu des fiches et pagination ---
+    function createScanPlaceholder() {
+      const box = document.createElement("div");
+      box.className = "ab-scan-placeholder";
+      box.textContent = "[ Scan non disponible ]";
+      return box;
+    }
+
+    function renderCard(rec) {
+      const article = document.createElement("article");
+      article.className = "ab-card";
+
+      // En-tête : FICHE BNF N° ... à gauche, date à droite
+      const header = document.createElement("header");
+      header.className = "ab-card-header";
+
+      const badge = document.createElement("span");
+      badge.className = "ab-card-badge";
+      badge.textContent = `FICHE BNF N° ${rec.numero}`;
+
+      const dateEl = document.createElement("time");
+      dateEl.className = "ab-card-date";
+      if (rec.date.raw) {
+        dateEl.setAttribute("datetime", rec.date.raw);
+      }
+      dateEl.textContent = rec.date.display;
+
+      header.append(badge, dateEl);
+
+      // Corps synoptique
+      const body = document.createElement("div");
+      body.className = "ab-card-body";
+
+      // Colonne gauche : Scan du manuscrit
+      const scanCol = document.createElement("div");
+      scanCol.className = "ab-card-scan-col";
+
+      const scanFrame = document.createElement("div");
+      scanFrame.className = "ab-scan-frame";
+
+      if (rec.scans.length === 0) {
+        scanFrame.appendChild(createScanPlaceholder());
+        scanCol.appendChild(scanFrame);
+      } else {
+        let activeIndex = 0;
+        const img = document.createElement("img");
+        img.className = "ab-scan-img";
+        img.loading = "lazy";
+        img.decoding = "async";
+        img.src = rec.scans[0].url;
+        img.alt = `Scan manuscrit de la fiche BnF n° ${rec.numero}`;
+
+        img.addEventListener("error", () => {
+          scanFrame.replaceChildren(createScanPlaceholder());
+        });
+
+        scanFrame.appendChild(img);
+
+        const scanActions = document.createElement("div");
+        scanActions.className = "ab-scan-actions";
+
+        const fullScreenLink = document.createElement("a");
+        fullScreenLink.className = "ab-fullscreen-btn";
+        fullScreenLink.href = rec.scans[0].url;
+        fullScreenLink.target = "_blank";
+        fullScreenLink.rel = "noopener noreferrer";
+        fullScreenLink.textContent = "Plein écran ↗";
+        fullScreenLink.setAttribute(
+          "aria-label",
+          `Ouvrir le scan de la fiche BnF n° ${rec.numero} en plein écran dans un nouvel onglet`
+        );
+
+        if (rec.scans.length > 1) {
+          const tabs = document.createElement("div");
+          tabs.className = "ab-scan-tabs";
+          const tabBtns = [];
+
+          rec.scans.forEach((scanItem, idx) => {
+            const tabBtn = document.createElement("button");
+            tabBtn.type = "button";
+            tabBtn.className = "ab-scan-tab";
+            tabBtn.setAttribute("aria-pressed", idx === 0 ? "true" : "false");
+            tabBtn.textContent =
+              rec.scans.length === 2
+                ? idx === 0
+                  ? "Recto"
+                  : "Verso"
+                : `Vue ${idx + 1}`;
+
+            tabBtn.addEventListener("click", () => {
+              if (activeIndex === idx) return;
+              activeIndex = idx;
+              tabBtns.forEach((b, bIdx) => {
+                b.setAttribute("aria-pressed", bIdx === idx ? "true" : "false");
+              });
+              scanFrame.replaceChildren(img);
+              img.src = scanItem.url;
+              img.alt = `Scan manuscrit (${tabBtn.textContent}) de la fiche BnF n° ${rec.numero}`;
+              fullScreenLink.href = scanItem.url;
+            });
+
+            tabBtns.push(tabBtn);
+            tabs.appendChild(tabBtn);
+          });
+
+          scanActions.appendChild(tabs);
+        }
+
+        scanActions.appendChild(fullScreenLink);
+        scanCol.append(scanFrame, scanActions);
+      }
+
+      // Colonne droite : Transcription
+      const textCol = document.createElement("div");
+      textCol.className = "ab-card-text-col";
+
+      const titleH2 = document.createElement("h2");
+      titleH2.className = "ab-card-title";
+      titleH2.textContent = rec.title;
+
+      const transDiv = document.createElement("div");
+      transDiv.className = "ab-transcription";
+      renderSanitizedTranscription(transDiv, rec.transcriptionHtml, rec.id);
+
+      textCol.append(titleH2, transDiv);
+      body.append(scanCol, textCol);
+
+      // Pied de fiche : métadonnées encadrées + Notice complète →
+      const footer = document.createElement("footer");
+      footer.className = "ab-card-footer";
+
+      const metaTags = document.createElement("div");
+      metaTags.className = "ab-meta-tags";
+
+      const appendMetaBlock = (keyText, valText) => {
+        const block = document.createElement("span");
+        block.className = "ab-meta-block";
+
+        const kEl = document.createElement("span");
+        kEl.className = "ab-meta-key";
+        kEl.textContent = `${keyText} :`;
+
+        const vEl = document.createElement("span");
+        vEl.className = "ab-meta-val";
+        vEl.textContent = valText;
+
+        block.append(kEl, vEl);
+        metaTags.appendChild(block);
+      };
+
+      appendMetaBlock("Cote BnF", rec.cote);
+
+      for (const g of rec.genres) {
+        appendMetaBlock("Genre", g.label);
+      }
+      for (const p of rec.persons) {
+        appendMetaBlock("Personne", p.label);
+      }
+      for (const l of rec.places) {
+        appendMetaBlock("Lieu", l.label);
+      }
+
+      const noticeLink = document.createElement("a");
+      noticeLink.className = "ab-notice-link";
+      noticeLink.href = rec.noticeUrl;
+      noticeLink.target = "_blank";
+      noticeLink.rel = "noopener noreferrer";
+      noticeLink.textContent = "Notice complète →";
+      noticeLink.setAttribute(
+        "aria-label",
+        `Notice complète de la fiche BnF n° ${rec.numero} dans Heurist`
+      );
+
+      footer.append(metaTags, noticeLink);
+      article.append(header, body, footer);
+      return article;
+    }
+
+    function renderResults() {
+      const total = state.totalCount;
+      const currentPage = Math.floor(state.offset / state.limit) + 1;
+      const totalPages = Math.max(1, Math.ceil(total / state.limit));
+
+      if (state.isLoading) {
+        statusCount.textContent = "Chargement des fiches…";
+        statusPage.textContent = `Page ${currentPage} sur ${totalPages}`;
+        topPag.prevBtn.disabled = true;
+        topPag.nextBtn.disabled = true;
+        bottomPagWrap.hidden = true;
+
+        const loadingBox = document.createElement("div");
+        loadingBox.className = "ab-state-box";
+
+        const title = document.createElement("p");
+        title.className = "ab-state-title";
+        title.textContent = "Interrogation de l’archive Heurist";
+
+        const desc = document.createElement("p");
+        desc.className = "ab-state-desc";
+        desc.textContent = `Base ${config.db} — récupération des fiches (lot de ${state.limit})…`;
+
+        const progress = document.createElement("progress");
+        progress.className = "ab-progress";
+        progress.setAttribute("aria-label", "Chargement des fiches en cours");
+
+        loadingBox.append(title, desc, progress);
+        resultsRegion.replaceChildren(loadingBox);
+        return;
+      }
+
+      if (state.error) {
+        statusCount.textContent = "Erreur de chargement";
+        statusPage.textContent = "Page 1 sur 1";
+        topPag.prevBtn.disabled = true;
+        topPag.nextBtn.disabled = true;
+        bottomPagWrap.hidden = true;
+
+        const errBox = document.createElement("div");
+        errBox.className = "ab-state-box is-error";
+        errBox.setAttribute("role", "alert");
+
+        const title = document.createElement("p");
+        title.className = "ab-state-title";
+        title.textContent = "Impossible de charger les fiches depuis Heurist";
+
+        const desc = document.createElement("p");
+        desc.className = "ab-state-desc";
+        desc.textContent = state.error;
+
+        const retryBtn = document.createElement("button");
+        retryBtn.type = "button";
+        retryBtn.className = "ab-page-btn";
+        retryBtn.textContent = "Réessayer";
+        retryBtn.addEventListener("click", () => executeSearch());
+
+        errBox.append(title, desc, retryBtn);
+        resultsRegion.replaceChildren(errBox);
+        return;
+      }
+
+      if (total === 0 || state.records.length === 0) {
+        statusCount.textContent = "Affichage de 0 sur 0 fiches";
+        statusPage.textContent = "Page 1 sur 1";
+        topPag.prevBtn.disabled = true;
+        topPag.nextBtn.disabled = true;
+        bottomPagWrap.hidden = true;
+
+        const emptyBox = document.createElement("div");
+        emptyBox.className = "ab-state-box";
+
+        const title = document.createElement("p");
+        title.className = "ab-state-title";
+        title.textContent = "Aucune fiche ne correspond à votre recherche";
+
+        const desc = document.createElement("p");
+        desc.className = "ab-state-desc";
+        desc.textContent =
+          "Essayez d’élargir vos termes de recherche ou de décocher certains filtres.";
+
+        emptyBox.append(title, desc);
+        resultsRegion.replaceChildren(emptyBox);
+        return;
+      }
+
+      const startIdx = state.offset + 1;
+      const endIdx = Math.min(state.offset + state.records.length, total);
+      const pageLabel = `Page ${currentPage} sur ${totalPages}`;
+      const countLabel = `Affichage de ${startIdx}-${endIdx} sur ${total} fiches`;
+
+      statusCount.textContent = countLabel;
+      statusPage.textContent = pageLabel;
+      bottomPageText.textContent = pageLabel;
+
+      const hasPrev = state.offset > 0;
+      const hasNext = state.offset + state.limit < total;
+
+      topPag.prevBtn.disabled = !hasPrev;
+      topPag.nextBtn.disabled = !hasNext;
+      bottomPag.prevBtn.disabled = !hasPrev;
+      bottomPag.nextBtn.disabled = !hasNext;
+      bottomPagWrap.hidden = total <= state.limit && currentPage === 1;
+
+      const list = document.createElement("div");
+      list.className = "ab-cards-list";
+      const frag = document.createDocumentFragment();
+      for (const rec of state.records) {
+        frag.appendChild(renderCard(rec));
+      }
+      list.appendChild(frag);
+      resultsRegion.replaceChildren(list);
+    }
+
+    // --- Chargement depuis l'API Heurist ---
+    function extractRecordsFromResponse(payload) {
+      const container = payload?.heurist || payload?.data || payload || {};
+      let rawRecords = container.records || [];
+      if (!Array.isArray(rawRecords) && rawRecords && typeof rawRecords === "object") {
+        const order = Array.isArray(container.order) ? container.order : null;
+        if (order) {
+          rawRecords = order.map((id) => rawRecords[String(id)]).filter(Boolean);
+        } else {
+          rawRecords = Object.values(rawRecords);
+        }
+      }
+
+      const rawCount =
+        container.count ??
+        container.total ??
+        container.reccount_total ??
+        payload?.count ??
+        payload?.total;
+      const parsedTotal =
+        rawCount !== undefined && rawCount !== null && rawCount !== ""
+          ? Number(rawCount)
+          : null;
+
+      return {
+        rawRecords: Array.isArray(rawRecords) ? rawRecords : [],
+        serverTotal: Number.isFinite(parsedTotal) ? parsedTotal : null
+      };
+    }
+
+    async function executeSearch(options = {}) {
+      const { scrollTop = false } = options;
+      const { q, humanQuery } = buildHeuristQuery(state, state.facets);
+      statusBar.dataset.query = humanQuery;
+
+      // Si l'endpoint a déjà renvoyé la totalité des résultats non paginés pour cette requête q,
+      // on découpe instantanément la tranche [offset, offset + limit] sans re-télécharger tout le flux.
+      const cachedFull = queryCache.get(q);
+      if (cachedFull) {
+        state.totalCount = cachedFull.length;
+        state.records = cachedFull.slice(state.offset, state.offset + state.limit);
+        state.isLoading = false;
+        state.error = null;
+        renderResults();
+        if (scrollTop) {
+          scrollIntoViewCleanly();
+        }
+        return;
+      }
+
+      if (activeAbortController) {
+        activeAbortController.abort();
+      }
+      activeAbortController = new AbortController();
+      const { signal } = activeAbortController;
+
+      state.isLoading = true;
+      state.error = null;
+      renderResults();
+
+      const params = new URLSearchParams();
+      params.set("db", config.db);
+      params.set("q", q);
+      params.set("limit", String(state.limit));
+      params.set("offset", String(state.offset));
+      params.set("format", "json");
+      params.set("extended", "2");
+
+      const requestUrl = `${config.recordOutputUrl}?${params.toString()}`;
+
+      try {
+        const response = await fetch(requestUrl, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal
+        });
+
+        const rawText = await response.text();
+        let data;
+        try {
+          data = JSON.parse(rawText);
+        } catch (_parseErr) {
+          throw new Error(
+            `Réponse non JSON reçue depuis Heurist (HTTP ${response.status}).`
+          );
+        }
+
+        if (!response.ok || data.error) {
+          const msg =
+            data.message?.replace(/<[^>]+>/g, " ").trim() ||
+            data.error ||
+            `Erreur HTTP ${response.status}`;
+          throw new Error(msg);
+        }
+
+        const { rawRecords, serverTotal } = extractRecordsFromResponse(data);
+        const normalized = rawRecords.map((r) => normalizeRecord(r, config));
+
+        // Initialiser les facettes sur le premier chargement du corpus complet (t:102)
+        if (!state.facetsInitialized && q === `t:${BASE_RECTYPE}`) {
+          state.facets = buildFacetsFromRecords(normalized);
+          state.facetsInitialized = true;
+          corpusBadge.textContent = `${normalized.length} fiches · t:${BASE_RECTYPE}`;
+          renderAllFacetOptions();
+        }
+
+        // Déterminer si le serveur a effectué la pagination ou renvoyé tout l'ensemble
+        const serverDidSlice =
+          serverTotal !== null &&
+          serverTotal > normalized.length &&
+          normalized.length <= state.limit;
+
+        if (serverDidSlice) {
+          state.totalCount = serverTotal;
+          state.records = normalized;
+        } else {
+          if (normalized.length > state.limit || q === `t:${BASE_RECTYPE}`) {
+            queryCache.set(q, normalized);
+          }
+          state.totalCount = normalized.length;
+          state.records = normalized.slice(state.offset, state.offset + state.limit);
+        }
+
+        state.isLoading = false;
+        state.error = null;
+        renderResults();
+
+        if (scrollTop) {
+          scrollIntoViewCleanly();
+        }
+      } catch (err) {
+        if (err && err.name === "AbortError") {
+          return;
+        }
+        state.isLoading = false;
+        state.error =
+          err && err.message
+            ? err.message
+            : "Erreur réseau lors de la connexion à l’API Heurist.";
+        renderResults();
+      }
+    }
+
+    function scrollIntoViewCleanly() {
+      const reducedMotion =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      statusBar.scrollIntoView({
+        behavior: reducedMotion ? "auto" : "smooth",
+        block: "start"
+      });
+    }
+
+    // --- Événements de recherche, pagination et raccourcis ---
+    function triggerImmediateSearch() {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+      const nextQuery = searchInput.value.trim();
+      if (nextQuery === state.searchQuery && state.offset === 0 && !state.error) {
+        return;
+      }
+      state.searchQuery = nextQuery;
+      state.offset = 0;
+      updateFilterIndicators();
+      executeSearch();
+    }
+
+    searchInput.addEventListener("input", () => {
+      searchClearBtn.hidden = searchInput.value.length === 0;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        state.searchQuery = searchInput.value.trim();
+        state.offset = 0;
+        updateFilterIndicators();
+        executeSearch();
+      }, SEARCH_DEBOUNCE_MS);
+    });
+
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (event.isComposing || event.keyCode === 229) {
+          return;
+        }
+        triggerImmediateSearch();
+      }
+    });
+
+    searchForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      triggerImmediateSearch();
+    });
+
+    searchClearBtn.addEventListener("click", () => {
+      searchInput.value = "";
+      state.searchQuery = "";
+      state.offset = 0;
+      updateFilterIndicators();
+      executeSearch();
+      searchInput.focus();
+    });
+
+    resetBtn.addEventListener("click", () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+      searchInput.value = "";
+      state.searchQuery = "";
+      state.offset = 0;
+      for (const fc of facetConfigs) {
+        state.selected[fc.key].clear();
+        state.popoverSearch[fc.key] = "";
+        facetRefs[fc.key].popSearch.value = "";
+      }
+      updateFilterIndicators();
+      renderAllFacetOptions();
+      executeSearch();
+    });
+
+    const goToPrevPage = (fromBottom) => {
+      if (state.offset <= 0 || state.isLoading) return;
+      state.offset = Math.max(0, state.offset - state.limit);
+      executeSearch({ scrollTop: fromBottom });
+    };
+
+    const goToNextPage = (fromBottom) => {
+      if (state.offset + state.limit >= state.totalCount || state.isLoading) return;
+      state.offset += state.limit;
+      executeSearch({ scrollTop: fromBottom });
+    };
+
+    topPag.prevBtn.addEventListener("click", () => goToPrevPage(false));
+    topPag.nextBtn.addEventListener("click", () => goToNextPage(false));
+    bottomPag.prevBtn.addEventListener("click", () => goToPrevPage(true));
+    bottomPag.nextBtn.addEventListener("click", () => goToNextPage(true));
+
+    // Raccourci clavier Ctrl + K / Cmd + K
+    document.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        searchInput.focus();
+        if (searchInput.value) {
+          searchInput.select();
+        }
+      }
+    });
+
+    // Lancement initial
+    renderAllFacetOptions();
+    executeSearch();
+  }
+
+  // --- Initialisation tolérante à l'injection dynamique dans Heurist CMS ---
+  function init() {
+    const existing = document.getElementById(ROOT_ID);
+    if (existing) {
+      mountApp(existing);
+      return;
+    }
+
+    let observer = null;
+    let pollTimer = null;
+    let stopTimer = null;
+
+    const cleanup = () => {
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      if (stopTimer) {
+        clearTimeout(stopTimer);
+        stopTimer = null;
+      }
+      document.removeEventListener("DOMContentLoaded", tryMount);
+    };
+
+    const tryMount = () => {
+      const el = document.getElementById(ROOT_ID);
+      if (el) {
+        cleanup();
+        mountApp(el);
+      }
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", tryMount);
+    }
+
+    if (typeof MutationObserver === "function" && document.documentElement) {
+      observer = new MutationObserver(tryMount);
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+    }
+
+    pollTimer = setInterval(tryMount, MOUNT_POLL_INTERVAL_MS);
+    stopTimer = setTimeout(cleanup, MOUNT_TIMEOUT_MS);
+  }
+
+  init();
+})();

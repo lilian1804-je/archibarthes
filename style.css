@@ -1,0 +1,1105 @@
+/* ==========================================================================
+   ArchiBarthes — Interface éditoriale Bauhaus (Headless Heurist Frontend)
+   Styles entièrement scopés à #archibarthes-root pour préserver le CMS hôte
+   ========================================================================== */
+
+@layer archibarthes.tokens, archibarthes.base, archibarthes.controls, archibarthes.cards, archibarthes.overlays;
+
+@layer archibarthes.tokens {
+  #archibarthes-root {
+    --ab-bg-page: #ffffff;
+    --ab-bg-subtle: #f8fafc;
+    --ab-bg-muted: #f1f5f9;
+    --ab-text-primary: #0f172a;
+    --ab-text-strong: #1a1a1a;
+    --ab-text-secondary: #475569;
+    --ab-text-inverse: #ffffff;
+    --ab-accent: #d02020;
+    --ab-accent-hover: #ad1818;
+    --ab-accent-soft: #fef2f2;
+    --ab-border-strong: #cbd5e1;
+    --ab-border-subtle: #e2e8f0;
+    --ab-border-dark: #0f172a;
+    --ab-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    --ab-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --ab-radius: 2px;
+    --ab-focus-ring: 2px solid #d02020;
+    --ab-scan-width: 330px;
+    --ab-icon-check: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='square' stroke-linejoin='miter'><polyline points='20 6 9 17 4 12'></polyline></svg>");
+
+    color: var(--ab-text-primary);
+    background-color: var(--ab-bg-page);
+    font-family: var(--ab-font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+    text-align: start;
+    box-sizing: border-box;
+    max-inline-size: 1200px;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+    padding-block: 1.5rem 3rem;
+  }
+
+  #archibarthes-root :where(*, *::before, *::after) {
+    box-sizing: border-box;
+  }
+}
+
+@layer archibarthes.base {
+  #archibarthes-root .ab-visually-hidden:where(:not(:focus-within, :active)) {
+    position: absolute !important;
+    clip-path: inset(50%) !important;
+    overflow: hidden !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: -1px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  #archibarthes-root :where(button, input, a):focus-visible {
+    outline: var(--ab-focus-ring);
+    outline-offset: 2px;
+  }
+
+  #archibarthes-root .ab-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* En-tête éditorial Bauhaus */
+  #archibarthes-root .ab-masthead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block-end: 1.25rem;
+    border-block-end: 3px solid var(--ab-text-primary);
+  }
+
+  #archibarthes-root .ab-brand {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.875rem;
+  }
+
+  #archibarthes-root .ab-brand-mark {
+    inline-size: 0.75rem;
+    block-size: 2.75rem;
+    background-color: var(--ab-accent);
+    flex-shrink: 0;
+    margin-block-start: 0.15rem;
+  }
+
+  #archibarthes-root .ab-kicker {
+    margin: 0 0 0.2rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-title {
+    margin: 0;
+    font-size: clamp(1.375rem, 1.1rem + 1.2vw, 1.875rem);
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    color: var(--ab-text-strong);
+    text-transform: uppercase;
+    text-wrap: balance;
+  }
+
+  #archibarthes-root .ab-subtitle {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: var(--ab-text-secondary);
+  }
+
+  #archibarthes-root .ab-corpus-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--ab-border-strong);
+    background-color: var(--ab-bg-subtle);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ab-text-primary);
+  }
+}
+
+@layer archibarthes.controls {
+  /* Zone de recherche et filtres */
+  #archibarthes-root .ab-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+    background-color: var(--ab-bg-subtle);
+    border: 1px solid var(--ab-border-strong);
+  }
+
+  #archibarthes-root .ab-search-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  #archibarthes-root .ab-search-field {
+    position: relative;
+    flex: 1 1 280px;
+    min-inline-size: 0;
+    display: flex;
+    align-items: center;
+    background-color: var(--ab-bg-page);
+    border: 2px solid var(--ab-border-strong);
+    border-radius: var(--ab-radius);
+    transition: border-color 140ms ease;
+  }
+
+  #archibarthes-root .ab-search-field:focus-within {
+    border-color: var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-search-icon {
+    display: inline-flex;
+    align-items: center;
+    padding-inline-start: 0.875rem;
+    color: var(--ab-text-secondary);
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+
+  #archibarthes-root .ab-search-input {
+    appearance: none;
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: 2.75rem;
+    padding-block: 0.5rem;
+    padding-inline: 0.625rem 0.5rem;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--ab-text-primary);
+  }
+
+  #archibarthes-root .ab-search-input:focus {
+    outline: none;
+  }
+
+  #archibarthes-root .ab-search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  #archibarthes-root .ab-search-clear {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 2rem;
+    min-block-size: 2rem;
+    margin-inline-end: 0.25rem;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--ab-radius);
+    background: transparent;
+    color: var(--ab-text-secondary);
+    font-size: 1.125rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  #archibarthes-root .ab-search-clear:hover {
+    color: var(--ab-accent);
+    background-color: var(--ab-accent-soft);
+  }
+
+  #archibarthes-root .ab-kbd-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-inline-end: 0.75rem;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid var(--ab-border-strong);
+    background-color: var(--ab-bg-subtle);
+    color: var(--ab-text-secondary);
+    font-family: var(--ab-font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+
+  #archibarthes-root .ab-search-submit {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 2.75rem;
+    padding-inline: 1.25rem;
+    padding-block: 0.5rem;
+    border: 2px solid var(--ab-text-primary);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-text-primary);
+    color: var(--ab-text-inverse);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease;
+  }
+
+  #archibarthes-root .ab-search-submit:hover:not(:disabled) {
+    background-color: var(--ab-accent);
+    border-color: var(--ab-accent);
+  }
+
+  /* Barre horizontale des filtres */
+  #archibarthes-root .ab-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  #archibarthes-root .ab-filter-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ab-text-secondary);
+    margin-inline-end: 0.25rem;
+  }
+
+  #archibarthes-root .ab-filter-group {
+    position: relative;
+  }
+
+  #archibarthes-root .ab-filter-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-block-size: 2.5rem;
+    padding-inline: 0.875rem;
+    padding-block: 0.375rem;
+    border: 1px solid var(--ab-border-strong);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: border-color 120ms ease, background-color 120ms ease;
+  }
+
+  #archibarthes-root .ab-filter-btn:hover:not(:disabled),
+  #archibarthes-root .ab-filter-btn[aria-expanded="true"] {
+    border-color: var(--ab-text-primary);
+    background-color: var(--ab-bg-muted);
+  }
+
+  #archibarthes-root .ab-filter-btn.has-selection {
+    border-color: var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-filter-chevron {
+    display: inline-flex;
+    transition: transform 150ms ease;
+  }
+
+  #archibarthes-root .ab-filter-btn[aria-expanded="true"] .ab-filter-chevron {
+    transform: rotate(180deg);
+  }
+
+  #archibarthes-root .ab-filter-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 1.35rem;
+    min-block-size: 1.35rem;
+    padding-inline: 0.35rem;
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-accent);
+    color: var(--ab-text-inverse);
+    font-size: 0.72rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  #archibarthes-root .ab-filter-badge[hidden] {
+    display: none;
+  }
+
+  #archibarthes-root .ab-reset-btn {
+    appearance: none;
+    margin-inline-start: auto;
+    min-block-size: 2.5rem;
+    padding-inline: 0.75rem;
+    border: 1px solid var(--ab-border-strong);
+    border-radius: var(--ab-radius);
+    background-color: transparent;
+    color: var(--ab-accent);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+  }
+
+  #archibarthes-root .ab-reset-btn:hover {
+    background-color: var(--ab-accent);
+    border-color: var(--ab-accent);
+    color: var(--ab-text-inverse);
+  }
+
+  #archibarthes-root .ab-reset-btn[hidden] {
+    display: none;
+  }
+
+  /* Puces des filtres actifs */
+  #archibarthes-root .ab-active-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  #archibarthes-root .ab-active-chips[hidden] {
+    display: none;
+  }
+
+  #archibarthes-root .ab-chip {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-block-size: 2rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--ab-text-primary);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  #archibarthes-root .ab-chip:hover {
+    border-color: var(--ab-accent);
+    color: var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-chip-type {
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ab-accent);
+  }
+
+  /* Barre d'état et pagination */
+  #archibarthes-root .ab-status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    padding-block: 0.75rem;
+    border-block: 1px solid var(--ab-border-subtle);
+    scroll-margin-top: 1rem;
+  }
+
+  #archibarthes-root .ab-status-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+    font-size: 0.875rem;
+    color: var(--ab-text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  #archibarthes-root .ab-status-count {
+    font-weight: 700;
+    color: var(--ab-text-primary);
+  }
+
+  #archibarthes-root .ab-status-page {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--ab-border-strong);
+    background-color: var(--ab-bg-subtle);
+    color: var(--ab-text-primary);
+  }
+
+  #archibarthes-root .ab-pagination {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  #archibarthes-root .ab-page-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-block-size: 2.35rem;
+    padding-inline: 0.9rem;
+    padding-block: 0.35rem;
+    border: 1px solid var(--ab-text-primary);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  #archibarthes-root .ab-page-btn:hover:not(:disabled) {
+    background-color: var(--ab-text-primary);
+    color: var(--ab-text-inverse);
+  }
+
+  #archibarthes-root .ab-page-btn:disabled {
+    border-color: var(--ab-border-subtle);
+    color: var(--ab-text-secondary);
+    background-color: var(--ab-bg-subtle);
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  #archibarthes-root .ab-bottom-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block-start: 1.25rem;
+    border-block-start: 2px solid var(--ab-text-primary);
+  }
+}
+
+@layer archibarthes.cards {
+  /* Liste des fiches */
+  #archibarthes-root .ab-results-region {
+    min-block-size: 14rem;
+  }
+
+  #archibarthes-root .ab-cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  #archibarthes-root .ab-card {
+    border: 1px solid var(--ab-border-strong);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+  }
+
+  /* En-tête de fiche */
+  #archibarthes-root .ab-card-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1.125rem;
+    background-color: var(--ab-bg-subtle);
+    border-block-end: 1px solid var(--ab-border-strong);
+  }
+
+  #archibarthes-root .ab-card-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem 0.65rem;
+    background-color: var(--ab-accent);
+    color: var(--ab-text-inverse);
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #archibarthes-root .ab-card-date {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ab-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Corps synoptique : scan à gauche, transcription à droite */
+  #archibarthes-root .ab-card-body {
+    display: grid;
+    grid-template-columns: minmax(0, var(--ab-scan-width)) minmax(0, 1fr);
+  }
+
+  @media (max-width: 820px) {
+    #archibarthes-root .ab-card-body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* Colonne gauche : Scan du manuscrit */
+  #archibarthes-root .ab-card-scan-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1.125rem;
+    background-color: var(--ab-bg-subtle);
+    min-inline-size: 0;
+  }
+
+  #archibarthes-root .ab-scan-frame {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 210px;
+    background-color: var(--ab-bg-page);
+    border: 1px solid var(--ab-border-strong);
+    padding: 0.5rem;
+  }
+
+  #archibarthes-root .ab-scan-img {
+    display: block;
+    max-inline-size: 100%;
+    max-block-size: 320px;
+    inline-size: auto;
+    block-size: auto;
+    object-fit: contain;
+  }
+
+  #archibarthes-root .ab-scan-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 100%;
+    min-block-size: 190px;
+    padding: 1rem;
+    border: 1px dashed var(--ab-border-strong);
+    background-color: var(--ab-bg-subtle);
+    color: var(--ab-text-secondary);
+    font-family: var(--ab-font-mono);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
+
+  #archibarthes-root .ab-scan-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  #archibarthes-root .ab-scan-tabs {
+    display: inline-flex;
+    gap: 0.25rem;
+  }
+
+  #archibarthes-root .ab-scan-tab {
+    appearance: none;
+    min-block-size: 2rem;
+    padding-inline: 0.55rem;
+    border: 1px solid var(--ab-border-strong);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+  }
+
+  #archibarthes-root .ab-scan-tab[aria-pressed="true"] {
+    background-color: var(--ab-text-primary);
+    border-color: var(--ab-text-primary);
+    color: var(--ab-text-inverse);
+  }
+
+  #archibarthes-root .ab-fullscreen-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-block-size: 2.15rem;
+    padding-inline: 0.75rem;
+    padding-block: 0.25rem;
+    margin-inline-start: auto;
+    border: 1px solid var(--ab-text-primary);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+
+  #archibarthes-root .ab-fullscreen-btn:hover {
+    background-color: var(--ab-accent);
+    border-color: var(--ab-accent);
+    color: var(--ab-text-inverse);
+  }
+
+  /* Colonne droite : Transcription */
+  #archibarthes-root .ab-card-text-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    border-inline-start: 2px solid var(--ab-border-strong);
+    min-inline-size: 0;
+  }
+
+  @media (max-width: 820px) {
+    #archibarthes-root .ab-card-text-col {
+      border-inline-start: 0;
+      border-block-start: 2px solid var(--ab-border-strong);
+      padding: 1.125rem;
+    }
+  }
+
+  #archibarthes-root .ab-card-title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ab-text-secondary);
+    padding-block-end: 0.5rem;
+    border-block-end: 1px solid var(--ab-border-subtle);
+    overflow-wrap: break-word;
+  }
+
+  #archibarthes-root .ab-transcription {
+    font-size: 1.02rem;
+    line-height: 1.7;
+    color: var(--ab-text-strong);
+    max-inline-size: 68ch;
+    overflow-wrap: break-word;
+    text-wrap: pretty;
+  }
+
+  #archibarthes-root .ab-transcription p {
+    margin-block: 0 0.85em;
+  }
+
+  #archibarthes-root .ab-transcription p:last-child {
+    margin-block-end: 0;
+  }
+
+  #archibarthes-root .ab-transcription hr {
+    border: 0;
+    border-block-start: 1px solid var(--ab-border-strong);
+    margin-block: 1rem;
+  }
+
+  #archibarthes-root .ab-transcription a {
+    color: var(--ab-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  #archibarthes-root .ab-transcription table {
+    border-collapse: collapse;
+    margin-block: 0.75rem;
+    inline-size: 100%;
+    font-size: 0.92rem;
+  }
+
+  #archibarthes-root .ab-transcription :where(td, th) {
+    border: 1px solid var(--ab-border-strong);
+    padding: 0.4rem 0.6rem;
+    text-align: start;
+  }
+
+  #archibarthes-root .ab-transcription-empty {
+    margin: 0;
+    font-style: italic;
+    color: var(--ab-text-secondary);
+  }
+
+  /* Pied de fiche */
+  #archibarthes-root .ab-card-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1.25rem;
+    padding: 0.875rem 1.125rem;
+    background-color: var(--ab-bg-subtle);
+    border-block-start: 1px solid var(--ab-border-strong);
+  }
+
+  #archibarthes-root .ab-meta-tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    min-inline-size: 0;
+  }
+
+  #archibarthes-root .ab-meta-block {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    padding: 0.25rem 0.55rem;
+    border: 1px solid var(--ab-border-strong);
+    background-color: var(--ab-bg-page);
+    font-size: 0.75rem;
+    line-height: 1.35;
+    max-inline-size: 100%;
+    overflow-wrap: break-word;
+  }
+
+  #archibarthes-root .ab-meta-key {
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ab-text-secondary);
+    flex-shrink: 0;
+  }
+
+  #archibarthes-root .ab-meta-val {
+    font-weight: 600;
+    color: var(--ab-text-primary);
+  }
+
+  #archibarthes-root .ab-notice-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-block-size: 2.25rem;
+    padding-inline: 0.85rem;
+    padding-block: 0.25rem;
+    margin-inline-start: auto;
+    border: 1px solid var(--ab-text-primary);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  #archibarthes-root .ab-notice-link:hover {
+    background-color: var(--ab-text-primary);
+    color: var(--ab-text-inverse);
+  }
+
+  /* États vides, chargement, erreur */
+  #archibarthes-root .ab-state-box {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 2rem 1.5rem;
+    border: 1px solid var(--ab-border-strong);
+    background-color: var(--ab-bg-subtle);
+  }
+
+  #archibarthes-root .ab-state-box.is-error {
+    border-color: var(--ab-accent);
+    background-color: var(--ab-accent-soft);
+  }
+
+  #archibarthes-root .ab-state-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ab-text-primary);
+  }
+
+  #archibarthes-root .ab-state-desc {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--ab-text-secondary);
+  }
+
+  #archibarthes-root .ab-progress {
+    inline-size: 100%;
+    max-inline-size: 280px;
+    block-size: 6px;
+    accent-color: var(--ab-accent);
+  }
+}
+
+@layer archibarthes.overlays {
+  /* Ancrage natif des popovers quand supporté */
+  #archibarthes-root .ab-popover {
+    inline-size: min(320px, calc(100vw - 24px));
+    padding: 0;
+    border: 2px solid var(--ab-text-primary);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    box-shadow: 4px 4px 0 rgba(15, 23, 42, 0.14);
+  }
+
+  #archibarthes-root .ab-popover:where(:popover-open, .\:popover-open, .is-open) {
+    display: flex;
+    flex-direction: column;
+  }
+
+  @supports (position-area: block-end) {
+    #archibarthes-root .ab-popover {
+      inset: auto;
+      margin: 0;
+      margin-block-start: 6px;
+      position-area: block-end span-inline-end;
+      position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+    }
+  }
+
+  @supports not (position-area: block-end) {
+    #archibarthes-root .ab-popover {
+      position: fixed;
+      inset: auto;
+      margin: 0;
+      top: var(--ab-popover-top, 16px);
+      left: var(--ab-popover-left, 16px);
+      z-index: 2147483000;
+    }
+  }
+
+  /* Fallback sans API Popover native */
+  #archibarthes-root .ab-popover:not([popover]) {
+    display: none;
+  }
+
+  #archibarthes-root .ab-popover.is-open {
+    display: flex;
+  }
+
+  #archibarthes-root .ab-popover-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    background-color: var(--ab-bg-subtle);
+    border-block-end: 1px solid var(--ab-border-strong);
+  }
+
+  #archibarthes-root .ab-popover-search {
+    appearance: none;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    min-block-size: 2.25rem;
+    padding-inline: 0.6rem;
+    border: 1px solid var(--ab-border-strong);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    font-family: inherit;
+    font-size: 0.85rem;
+  }
+
+  #archibarthes-root .ab-popover-search:focus {
+    outline: none;
+    border-color: var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-popover-clear {
+    appearance: none;
+    min-block-size: 2.25rem;
+    padding-inline: 0.55rem;
+    border: 1px solid var(--ab-border-strong);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-accent);
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  #archibarthes-root .ab-popover-clear:hover:not(:disabled) {
+    background-color: var(--ab-accent);
+    border-color: var(--ab-accent);
+    color: var(--ab-text-inverse);
+  }
+
+  #archibarthes-root .ab-popover-clear[hidden] {
+    display: none;
+  }
+
+  #archibarthes-root .ab-popover-options {
+    max-block-size: 270px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+    padding: 0.35rem 0.5rem;
+    margin: 0;
+    border: 0;
+  }
+
+  #archibarthes-root .ab-option-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    min-block-size: 44px;
+    padding-inline: 0.4rem;
+    padding-block: 0.25rem;
+    cursor: pointer;
+    border-block-end: 1px solid var(--ab-border-subtle);
+    transition: background-color 100ms ease;
+  }
+
+  #archibarthes-root .ab-option-row:last-child {
+    border-block-end: 0;
+  }
+
+  #archibarthes-root .ab-option-row:hover {
+    background-color: var(--ab-bg-subtle);
+  }
+
+  #archibarthes-root .ab-option-row:has(:checked) {
+    background-color: var(--ab-accent-soft);
+  }
+
+  #archibarthes-root .ab-option-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-inline-size: 0;
+  }
+
+  #archibarthes-root .ab-checkbox {
+    appearance: none;
+    display: inline-grid;
+    place-content: center;
+    inline-size: 1.15em;
+    block-size: 1.15em;
+    margin: 0;
+    border: 2px solid var(--ab-text-primary);
+    border-radius: 0;
+    background-color: var(--ab-bg-page);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  #archibarthes-root .ab-checkbox::before {
+    content: "";
+    inline-size: 0.78em;
+    block-size: 0.78em;
+    background-color: var(--ab-text-inverse);
+    mask: var(--ab-icon-check) no-repeat center / contain;
+    scale: 0;
+    transition: scale 120ms ease;
+  }
+
+  #archibarthes-root .ab-checkbox:checked {
+    background-color: var(--ab-accent);
+    border-color: var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-checkbox:checked::before {
+    scale: 1;
+  }
+
+  #archibarthes-root .ab-option-text {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--ab-text-primary);
+    overflow-wrap: break-word;
+  }
+
+  #archibarthes-root .ab-option-count {
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ab-text-secondary);
+    padding: 0.1rem 0.4rem;
+    border: 1px solid var(--ab-border-subtle);
+    background-color: var(--ab-bg-subtle);
+    flex-shrink: 0;
+  }
+
+  #archibarthes-root .ab-popover-empty {
+    padding: 1rem 0.75rem;
+    margin: 0;
+    font-size: 0.825rem;
+    font-style: italic;
+    color: var(--ab-text-secondary);
+    text-align: center;
+  }
+
+  /* Respect des préférences système */
+  @media (prefers-reduced-motion: reduce) {
+    #archibarthes-root :where(.ab-search-field, .ab-search-submit, .ab-filter-btn, .ab-filter-chevron, .ab-page-btn, .ab-fullscreen-btn, .ab-notice-link, .ab-option-row, .ab-checkbox::before) {
+      transition: none !important;
+    }
+  }
+
+  @media (forced-colors: active) {
+    #archibarthes-root .ab-card,
+    #archibarthes-root .ab-controls,
+    #archibarthes-root .ab-popover,
+    #archibarthes-root .ab-meta-block {
+      border-color: CanvasText;
+    }
+
+    #archibarthes-root .ab-card-badge,
+    #archibarthes-root .ab-filter-badge {
+      border: 1px solid CanvasText;
+    }
+
+    #archibarthes-root .ab-checkbox::before {
+      background-color: CanvasText;
+    }
+
+    #archibarthes-root .ab-checkbox:checked {
+      background-color: Highlight;
+      border-color: Highlight;
+    }
+  }
+}
