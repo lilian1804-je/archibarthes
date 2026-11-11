@@ -2,7 +2,7 @@
   "use strict";
 
   const ROOT_ID = "archibarthes-root";
-  const APP_VERSION = "1.2.0";
+  const APP_VERSION = "1.3.0";
   const DEFAULT_DB = "GF_Copie_EcoleCentrale";
   const BASE_RECTYPE = "102";
   const PAGE_LIMIT = 20;
@@ -966,8 +966,36 @@
       l3.setAttribute("x2", "9");
       l3.setAttribute("y2", "9");
       svg.append(p1, l1, p2, l2, l3);
+    } else if (type === "book") {
+      const cover = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      cover.setAttribute(
+        "d",
+        "M2 5.5C5.2 4.3 8.6 4.5 12 6.5c3.4-2 6.8-2.2 10-1v13c-3.2-1.2-6.6-1-10 1-3.4-2-6.8-2.2-10-1z"
+      );
+      const spine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      spine.setAttribute("x1", "12");
+      spine.setAttribute("y1", "6.5");
+      spine.setAttribute("x2", "12");
+      spine.setAttribute("y2", "19.5");
+      svg.append(cover, spine);
     }
     return svg;
+  }
+
+  function sanitizeCloneForFlip(sourceEl) {
+    const clone = sourceEl.cloneNode(true);
+    if (typeof clone.removeAttribute === "function") {
+      clone.removeAttribute("id");
+    }
+    if (typeof clone.querySelectorAll === "function") {
+      for (const el of clone.querySelectorAll("[id]")) {
+        el.removeAttribute("id");
+      }
+      for (const interactive of clone.querySelectorAll("a, button, input, select, textarea")) {
+        interactive.setAttribute("tabindex", "-1");
+      }
+    }
+    return clone;
   }
 
   function mountApp(root) {
@@ -1008,6 +1036,10 @@
       randomError: null,
       drawnRandomIds: new Set(),
       lastRandomOffset: -1,
+      notebookIndex: 0,
+      notebookLoading: false,
+      notebookError: null,
+      notebookRecordsByIndex: new Map(),
       selected: {
         dates: new Set(),
         persons: new Set(),
@@ -1025,6 +1057,8 @@
     let activeAbortController = null;
     let debounceTimer = null;
     let activeRandomToken = 0;
+    let activeNotebookToken = 0;
+    let activeFlipCancel = null;
     let activeViewNavId = 0;
 
     // Construction du squelette DOM
@@ -1082,12 +1116,14 @@
     const navHomeBtn = createNavTab("home", "Présentation");
     const navSearchBtn = createNavTab("search", "Recherche");
     const navRandomBtn = createNavTab("random", "Fiche aléatoire");
+    const navNotebookBtn = createNavTab("notebook", "Carnet de note");
     const navButtons = {
       home: navHomeBtn,
       search: navSearchBtn,
-      random: navRandomBtn
+      random: navRandomBtn,
+      notebook: navNotebookBtn
     };
-    viewNav.append(navHomeBtn, navSearchBtn, navRandomBtn);
+    viewNav.append(navHomeBtn, navSearchBtn, navRandomBtn, navNotebookBtn);
 
     const corpusBadge = document.createElement("div");
     corpusBadge.className = "ab-corpus-badge";
@@ -1143,7 +1179,15 @@
     ctaRandomLabel.textContent = "Générer une fiche aléatoire";
     ctaRandomBtn.appendChild(ctaRandomLabel);
 
-    heroActions.append(ctaSearchBtn, ctaRandomBtn);
+    const ctaNotebookBtn = document.createElement("button");
+    ctaNotebookBtn.type = "button";
+    ctaNotebookBtn.className = "ab-cta-btn ab-cta-notebook";
+    ctaNotebookBtn.appendChild(createSvgIcon("book"));
+    const ctaNotebookLabel = document.createElement("span");
+    ctaNotebookLabel.textContent = "Carnet de note";
+    ctaNotebookBtn.appendChild(ctaNotebookLabel);
+
+    heroActions.append(ctaSearchBtn, ctaRandomBtn, ctaNotebookBtn);
     heroMain.append(heroEyebrow, homeHeading, heroLead, heroActions);
 
     const heroAside = document.createElement("aside");
@@ -1201,6 +1245,11 @@
         index: "03 · Exploration libre",
         title: "Tirage aléatoire dans le fichier",
         desc: "Ouverture immédiate d’une fiche tirée au sort dans le fonds pour découvrir une note de Roland Barthes au hasard de l’archive."
+      },
+      {
+        index: "04 · Carnet de note",
+        title: "Feuilletage animé sur bureau",
+        desc: "Consultation séquentielle des fiches au sein d’un carnet relié posé sur un bureau, avec animation de page tournée."
       }
     ];
 
@@ -1514,13 +1563,146 @@
 
     randomView.append(randomToolbar, randomStage);
 
+    // 2D. Vue 4 : Page Carnet de note sur bureau avec cigares (cachée et inerte au départ)
+    const notebookView = document.createElement("div");
+    notebookView.className = "ab-view ab-view-notebook is-inactive";
+    notebookView.dataset.view = "notebook";
+    notebookView.setAttribute("aria-hidden", "true");
+    notebookView.setAttribute("inert", "");
+    notebookView.inert = true;
+
+    const nbToolbar = document.createElement("div");
+    nbToolbar.className = "ab-notebook-toolbar";
+
+    const nbInfo = document.createElement("div");
+    nbInfo.className = "ab-notebook-info";
+
+    const notebookHeading = document.createElement("h2");
+    notebookHeading.id = "ab-notebook-heading";
+    notebookHeading.className = "ab-notebook-heading";
+    notebookHeading.tabIndex = -1;
+    notebookHeading.textContent = "Carnet de note";
+
+    const notebookSub = document.createElement("p");
+    notebookSub.className = "ab-notebook-sub";
+    notebookSub.textContent =
+      "Feuilletage des fiches de Roland Barthes sur le bureau (boutons ou touches ← / →).";
+
+    nbInfo.append(notebookHeading, notebookSub);
+
+    const nbActions = document.createElement("div");
+    nbActions.className = "ab-notebook-actions";
+
+    const nbBackHomeBtn = document.createElement("button");
+    nbBackHomeBtn.type = "button";
+    nbBackHomeBtn.className = "ab-page-btn";
+    nbBackHomeBtn.textContent = "← Présentation";
+
+    const nbGoSearchBtn = document.createElement("button");
+    nbGoSearchBtn.type = "button";
+    nbGoSearchBtn.className = "ab-page-btn";
+    nbGoSearchBtn.textContent = "Accéder à la recherche";
+
+    const nbRandomPageBtn = document.createElement("button");
+    nbRandomPageBtn.type = "button";
+    nbRandomPageBtn.className = "ab-random-draw-btn";
+    nbRandomPageBtn.appendChild(createSvgIcon("shuffle"));
+    const nbRandomPageLabel = document.createElement("span");
+    nbRandomPageLabel.textContent = "Page au hasard";
+    nbRandomPageBtn.appendChild(nbRandomPageLabel);
+
+    nbActions.append(nbBackHomeBtn, nbGoSearchBtn, nbRandomPageBtn);
+    nbToolbar.append(nbInfo, nbActions);
+
+    const nbDesk = document.createElement("div");
+    nbDesk.className = "ab-notebook-desk";
+
+    const nbBookWrap = document.createElement("div");
+    nbBookWrap.className = "ab-book-wrap";
+
+    const nbBookCover = document.createElement("div");
+    nbBookCover.className = "ab-book-cover";
+
+    const nbBookStage = document.createElement("div");
+    nbBookStage.className = "ab-book-stage";
+
+    const nbLeftSlot = document.createElement("div");
+    nbLeftSlot.className = "ab-page-slot ab-page-slot--left";
+
+    const nbRightSlot = document.createElement("div");
+    nbRightSlot.className = "ab-page-slot ab-page-slot--right";
+
+    nbBookStage.append(nbLeftSlot, nbRightSlot);
+    nbBookCover.appendChild(nbBookStage);
+
+    const nbStateOverlay = document.createElement("div");
+    nbStateOverlay.className = "ab-nb-state-overlay";
+    nbStateOverlay.hidden = true;
+
+    const nbControls = document.createElement("nav");
+    nbControls.className = "ab-notebook-controls";
+    nbControls.setAttribute("aria-label", "Navigation du carnet de note");
+
+    const nbPrevBtn = document.createElement("button");
+    nbPrevBtn.type = "button";
+    nbPrevBtn.className = "ab-nb-nav-btn ab-nb-prev-btn";
+    nbPrevBtn.textContent = "← Page précédente";
+    nbPrevBtn.disabled = true;
+
+    const nbCenterTools = document.createElement("div");
+    nbCenterTools.className = "ab-nb-center-tools";
+
+    const nbCounter = document.createElement("span");
+    nbCounter.className = "ab-nb-counter";
+    nbCounter.setAttribute("aria-live", "polite");
+    nbCounter.textContent = "Chargement…";
+
+    const nbJumpForm = document.createElement("form");
+    nbJumpForm.className = "ab-nb-jump-form";
+    nbJumpForm.noValidate = true;
+
+    const nbJumpLabel = document.createElement("label");
+    nbJumpLabel.className = "ab-nb-jump-label";
+    nbJumpLabel.setAttribute("for", "ab-nb-jump-input");
+    nbJumpLabel.textContent = "Folio :";
+
+    const nbJumpInput = document.createElement("input");
+    nbJumpInput.id = "ab-nb-jump-input";
+    nbJumpInput.className = "ab-nb-jump-input";
+    nbJumpInput.type = "number";
+    nbJumpInput.min = "1";
+    nbJumpInput.step = "1";
+    nbJumpInput.inputMode = "numeric";
+    nbJumpInput.value = "1";
+
+    const nbJumpSubmit = document.createElement("button");
+    nbJumpSubmit.type = "submit";
+    nbJumpSubmit.className = "ab-page-btn ab-nb-jump-btn";
+    nbJumpSubmit.textContent = "Aller";
+    nbJumpSubmit.setAttribute("aria-label", "Aller au folio saisi");
+
+    nbJumpForm.append(nbJumpLabel, nbJumpInput, nbJumpSubmit);
+    nbCenterTools.append(nbCounter, nbJumpForm);
+
+    const nbNextBtn = document.createElement("button");
+    nbNextBtn.type = "button";
+    nbNextBtn.className = "ab-nb-nav-btn ab-nb-next-btn";
+    nbNextBtn.textContent = "Page suivante →";
+    nbNextBtn.disabled = true;
+
+    nbControls.append(nbPrevBtn, nbCenterTools, nbNextBtn);
+    nbBookWrap.append(nbBookCover, nbStateOverlay, nbControls);
+    nbDesk.appendChild(nbBookWrap);
+    notebookView.append(nbToolbar, nbDesk);
+
     const viewElements = {
       home: homeView,
       search: searchView,
-      random: randomView
+      random: randomView,
+      notebook: notebookView
     };
 
-    shell.append(masthead, homeView, searchView, randomView);
+    shell.append(masthead, homeView, searchView, randomView, notebookView);
     root.appendChild(shell);
 
     // --- Positionnement et gestion des popovers ---
@@ -2213,6 +2395,507 @@
       randomStage.replaceChildren(renderCard(rec, { titleTag: "h3", idPrefix: "r" }));
     }
 
+    // --- Rendu et feuilletage animé du Carnet de note ---
+    function getTotalNotebookPages() {
+      return state.corpusTotal || state.corpusRecords.length || 0;
+    }
+
+    function cancelActiveFlip() {
+      if (typeof activeFlipCancel === "function") {
+        activeFlipCancel();
+        activeFlipCancel = null;
+      }
+    }
+
+    function buildNotebookLeftPage(rec, index, total) {
+      const page = document.createElement("article");
+      page.className = "ab-nb-page ab-nb-page--left";
+      page.setAttribute(
+        "aria-label",
+        `Page de gauche — Fac-similé et métadonnées de la fiche BnF n° ${rec.numero}`
+      );
+
+      const head = document.createElement("header");
+      head.className = "ab-nb-page-head";
+
+      const badge = document.createElement("span");
+      badge.className = "ab-card-badge";
+      badge.textContent = `FICHE BNF N° ${rec.numero}`;
+
+      const dateEl = document.createElement("time");
+      dateEl.className = "ab-card-date";
+      if (rec.date.raw) {
+        dateEl.setAttribute("datetime", rec.date.raw);
+      }
+      dateEl.textContent = rec.date.display;
+
+      const folio = document.createElement("span");
+      folio.className = "ab-nb-folio";
+      folio.textContent = `Folio ${formatFrNumber(index + 1)} / ${formatFrNumber(total)}`;
+
+      head.append(badge, dateEl, folio);
+
+      const scanBox = document.createElement("div");
+      scanBox.className = "ab-nb-scan-box";
+
+      const scanFrame = document.createElement("div");
+      scanFrame.className = "ab-nb-scan-frame";
+
+      if (rec.scans.length === 0) {
+        scanFrame.appendChild(createScanPlaceholder());
+        scanBox.appendChild(scanFrame);
+      } else {
+        const img = document.createElement("img");
+        img.className = "ab-nb-scan-img";
+        img.loading = "eager";
+        img.decoding = "async";
+        img.src = rec.scans[0].url;
+        img.alt = `Scan manuscrit de la fiche BnF n° ${rec.numero}`;
+
+        img.addEventListener("error", () => {
+          scanFrame.replaceChildren(createScanPlaceholder());
+        });
+
+        scanFrame.appendChild(img);
+
+        const scanActions = document.createElement("div");
+        scanActions.className = "ab-scan-actions";
+
+        const fullScreenLink = document.createElement("a");
+        fullScreenLink.className = "ab-fullscreen-btn";
+        fullScreenLink.href = rec.scans[0].url;
+        fullScreenLink.target = "_blank";
+        fullScreenLink.rel = "noopener noreferrer";
+        fullScreenLink.textContent = "Plein écran ↗";
+        fullScreenLink.setAttribute(
+          "aria-label",
+          `Ouvrir le scan de la fiche BnF n° ${rec.numero} en plein écran dans un nouvel onglet`
+        );
+
+        if (rec.scans.length > 1) {
+          let activeScanIdx = 0;
+          const tabs = document.createElement("div");
+          tabs.className = "ab-scan-tabs";
+          const tabBtns = [];
+
+          rec.scans.forEach((scanItem, sIdx) => {
+            const tabBtn = document.createElement("button");
+            tabBtn.type = "button";
+            tabBtn.className = "ab-scan-tab";
+            tabBtn.setAttribute("aria-pressed", sIdx === 0 ? "true" : "false");
+            tabBtn.textContent =
+              rec.scans.length === 2
+                ? sIdx === 0
+                  ? "Recto"
+                  : "Verso"
+                : `Vue ${sIdx + 1}`;
+
+            tabBtn.addEventListener("click", () => {
+              if (activeScanIdx === sIdx) return;
+              activeScanIdx = sIdx;
+              tabBtns.forEach((b, bIdx) => {
+                b.setAttribute("aria-pressed", bIdx === sIdx ? "true" : "false");
+              });
+              scanFrame.replaceChildren(img);
+              img.src = scanItem.url;
+              img.alt = `Scan manuscrit (${tabBtn.textContent}) de la fiche BnF n° ${rec.numero}`;
+              fullScreenLink.href = scanItem.url;
+            });
+
+            tabBtns.push(tabBtn);
+            tabs.appendChild(tabBtn);
+          });
+
+          scanActions.appendChild(tabs);
+        }
+
+        scanActions.appendChild(fullScreenLink);
+        scanBox.append(scanFrame, scanActions);
+      }
+
+      const metaList = document.createElement("div");
+      metaList.className = "ab-nb-meta-list";
+
+      const addMeta = (keyText, valText) => {
+        const block = document.createElement("span");
+        block.className = "ab-meta-block";
+
+        const kEl = document.createElement("span");
+        kEl.className = "ab-meta-key";
+        kEl.textContent = `${keyText} :`;
+
+        const vEl = document.createElement("span");
+        vEl.className = "ab-meta-val";
+        vEl.textContent = valText;
+
+        block.append(kEl, vEl);
+        metaList.appendChild(block);
+      };
+
+      addMeta("Cote BnF", rec.cote);
+      for (const g of rec.genres) {
+        addMeta("Genre", g.label);
+      }
+      for (const p of rec.persons) {
+        addMeta("Personne", p.label);
+      }
+      for (const l of rec.places) {
+        addMeta("Lieu", l.label);
+      }
+
+      const foot = document.createElement("div");
+      foot.className = "ab-nb-page-foot";
+
+      const noticeLink = document.createElement("a");
+      noticeLink.className = "ab-notice-link";
+      noticeLink.href = rec.noticeUrl;
+      noticeLink.target = "_blank";
+      noticeLink.rel = "noopener noreferrer";
+      noticeLink.textContent = "Notice complète →";
+      noticeLink.setAttribute(
+        "aria-label",
+        `Notice complète de la fiche BnF n° ${rec.numero} dans Heurist`
+      );
+
+      foot.appendChild(noticeLink);
+      page.append(head, scanBox, metaList, foot);
+      return page;
+    }
+
+    function buildNotebookRightPage(rec, index, total) {
+      const page = document.createElement("article");
+      page.className = "ab-nb-page ab-nb-page--right";
+      page.setAttribute(
+        "aria-label",
+        `Page de droite — Transcription de la fiche BnF n° ${rec.numero}`
+      );
+
+      const head = document.createElement("header");
+      head.className = "ab-nb-page-head";
+
+      const kindLabel = document.createElement("span");
+      kindLabel.className = "ab-nb-folio";
+      kindLabel.textContent = "Transcription critique";
+
+      const pageTag = document.createElement("span");
+      pageTag.className = "ab-nb-folio";
+      pageTag.textContent = `${formatFrNumber(index + 1)} / ${formatFrNumber(total)}`;
+
+      head.append(kindLabel, pageTag);
+
+      const titleHeading = document.createElement("h3");
+      titleHeading.className = "ab-nb-title";
+      titleHeading.textContent = rec.title;
+
+      const transDiv = document.createElement("div");
+      transDiv.className = "ab-nb-transcription";
+      renderSanitizedTranscription(transDiv, rec.transcriptionHtml, `nb-${rec.id}`);
+
+      page.append(head, titleHeading, transDiv);
+      return page;
+    }
+
+    function updateNotebookControls(rec) {
+      const total = getTotalNotebookPages();
+      const disabledAll = state.notebookLoading || total === 0;
+
+      nbPrevBtn.disabled = disabledAll || state.notebookIndex <= 0;
+      nbNextBtn.disabled = disabledAll || state.notebookIndex >= total - 1;
+      nbRandomPageBtn.disabled = state.notebookLoading || total <= 1;
+      nbJumpInput.disabled = disabledAll;
+      nbJumpSubmit.disabled = disabledAll;
+
+      if (total > 0) {
+        nbJumpInput.max = String(total);
+        nbJumpInput.value = String(state.notebookIndex + 1);
+        nbCounter.textContent = `Fiche ${formatFrNumber(state.notebookIndex + 1)} sur ${formatFrNumber(total)}`;
+        if (rec) {
+          notebookSub.textContent = `Fiche BnF n° ${rec.numero} · ${rec.date.display} — utilise les boutons ou les flèches ← / →.`;
+        }
+      } else if (state.notebookLoading) {
+        nbCounter.textContent = "Chargement…";
+      } else {
+        nbCounter.textContent = "Aucune fiche";
+      }
+    }
+
+    function renderNotebookOverlayState() {
+      if (state.notebookLoading) {
+        nbBookCover.hidden = true;
+        nbStateOverlay.hidden = false;
+
+        const loadingBox = document.createElement("div");
+        loadingBox.className = "ab-state-box";
+
+        const title = document.createElement("p");
+        title.className = "ab-state-title";
+        title.textContent = "Ouverture du carnet de note";
+
+        const desc = document.createElement("p");
+        desc.className = "ab-state-desc";
+        desc.textContent = `Base ${config.db} — chargement du folio…`;
+
+        const progress = document.createElement("progress");
+        progress.className = "ab-progress";
+        progress.setAttribute("aria-label", "Chargement du carnet en cours");
+
+        loadingBox.append(title, desc, progress);
+        nbStateOverlay.replaceChildren(loadingBox);
+        return;
+      }
+
+      if (state.notebookError) {
+        nbBookCover.hidden = true;
+        nbStateOverlay.hidden = false;
+
+        const errBox = document.createElement("div");
+        errBox.className = "ab-state-box is-error";
+        errBox.setAttribute("role", "alert");
+
+        const title = document.createElement("p");
+        title.className = "ab-state-title";
+        title.textContent = "Impossible d’ouvrir cette page du carnet";
+
+        const desc = document.createElement("p");
+        desc.className = "ab-state-desc";
+        desc.textContent = state.notebookError;
+
+        const retryBtn = document.createElement("button");
+        retryBtn.type = "button";
+        retryBtn.className = "ab-page-btn";
+        retryBtn.textContent = "Réessayer";
+        retryBtn.addEventListener("click", () => {
+          openNotebookAt(state.notebookIndex, { animate: false, forceRetry: true });
+        });
+
+        errBox.append(title, desc, retryBtn);
+        nbStateOverlay.replaceChildren(errBox);
+        return;
+      }
+
+      nbStateOverlay.hidden = true;
+      nbStateOverlay.replaceChildren();
+      nbBookCover.hidden = false;
+    }
+
+    function animateNotebookTurn(oldLeft, oldRight, newLeft, newRight, direction) {
+      cancelActiveFlip();
+
+      const reducedMotion =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (reducedMotion || !oldLeft || !oldRight) {
+        nbLeftSlot.replaceChildren(newLeft);
+        nbRightSlot.replaceChildren(newRight);
+        return;
+      }
+
+      let isMobile = false;
+      if (typeof getComputedStyle === "function") {
+        const cols = getComputedStyle(nbBookStage).gridTemplateColumns || "";
+        const trackCount = cols.trim() ? cols.trim().split(/\s+/).length : 2;
+        isMobile = trackCount <= 1;
+      } else if (typeof nbDesk.clientWidth === "number" && nbDesk.clientWidth > 0) {
+        isMobile = nbDesk.clientWidth <= 720;
+      }
+
+      const leaf = document.createElement("div");
+      leaf.setAttribute("aria-hidden", "true");
+      leaf.setAttribute("inert", "");
+      leaf.inert = true;
+
+      const frontFace = document.createElement("div");
+      frontFace.className = "ab-flip-face ab-flip-face--front";
+
+      const backFace = document.createElement("div");
+      backFace.className = "ab-flip-face ab-flip-face--back";
+
+      if (isMobile) {
+        leaf.className = `ab-flip-leaf is-mobile ${direction === "next" ? "is-next" : "is-prev"} is-animating`;
+        if (direction === "next") {
+          nbLeftSlot.replaceChildren(newLeft);
+          nbRightSlot.replaceChildren(newRight);
+          frontFace.append(
+            sanitizeCloneForFlip(oldLeft),
+            sanitizeCloneForFlip(oldRight)
+          );
+        } else {
+          frontFace.append(
+            sanitizeCloneForFlip(newLeft),
+            sanitizeCloneForFlip(newRight)
+          );
+        }
+      } else {
+        leaf.className = `ab-flip-leaf ${direction === "next" ? "is-next" : "is-prev"} is-animating`;
+        if (direction === "next") {
+          nbRightSlot.replaceChildren(newRight);
+          frontFace.appendChild(sanitizeCloneForFlip(oldRight));
+          backFace.appendChild(sanitizeCloneForFlip(newLeft));
+        } else {
+          nbLeftSlot.replaceChildren(newLeft);
+          frontFace.appendChild(sanitizeCloneForFlip(oldLeft));
+          backFace.appendChild(sanitizeCloneForFlip(newRight));
+        }
+      }
+
+      leaf.append(frontFace, backFace);
+      nbBookStage.appendChild(leaf);
+
+      let finished = false;
+      let fallbackTimer = null;
+
+      const finishFlip = () => {
+        if (finished) return;
+        finished = true;
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
+        }
+        leaf.removeEventListener("animationend", onAnimEnd);
+        leaf.removeEventListener("animationcancel", finishFlip);
+        if (nbLeftSlot.firstElementChild !== newLeft) {
+          nbLeftSlot.replaceChildren(newLeft);
+        }
+        if (nbRightSlot.firstElementChild !== newRight) {
+          nbRightSlot.replaceChildren(newRight);
+        }
+        if (typeof leaf.remove === "function") {
+          leaf.remove();
+        } else if (leaf.parentNode) {
+          leaf.parentNode.removeChild(leaf);
+        }
+        if (activeFlipCancel === finishFlip) {
+          activeFlipCancel = null;
+        }
+      };
+
+      const onAnimEnd = (event) => {
+        if (event && event.target !== leaf) return;
+        finishFlip();
+      };
+
+      const anims =
+        typeof leaf.getAnimations === "function" ? leaf.getAnimations() : [];
+      if (!anims || anims.length === 0) {
+        finishFlip();
+        return;
+      }
+
+      activeFlipCancel = finishFlip;
+      leaf.addEventListener("animationend", onAnimEnd);
+      leaf.addEventListener("animationcancel", finishFlip);
+      fallbackTimer = setTimeout(finishFlip, 800);
+    }
+
+    async function fetchNotebookRecord(index) {
+      if (index < state.corpusRecords.length && state.corpusRecords[index]) {
+        return state.corpusRecords[index];
+      }
+      if (state.notebookRecordsByIndex.has(index)) {
+        return state.notebookRecordsByIndex.get(index);
+      }
+      const { normalized } = await fetchHeuristRecords(
+        `t:${BASE_RECTYPE}`,
+        1,
+        index,
+        undefined
+      );
+      if (normalized.length === 0) {
+        throw new Error("Fiche introuvable à cette position.");
+      }
+      state.notebookRecordsByIndex.set(index, normalized[0]);
+      return normalized[0];
+    }
+
+    async function openNotebookAt(targetIndex, options = {}) {
+      const { animate = false, direction = null, forceRetry = false } = options;
+      const token = ++activeNotebookToken;
+      const prevIndex = state.notebookIndex;
+
+      try {
+        if (!state.corpusLoaded || forceRetry) {
+          state.notebookError = null;
+          state.notebookLoading = true;
+          renderNotebookOverlayState();
+          updateNotebookControls(null);
+          await ensureCorpusLoaded(forceRetry || Boolean(state.corpusError));
+          if (token !== activeNotebookToken) return;
+        }
+
+        const total = getTotalNotebookPages();
+        if (total === 0) {
+          throw new Error("Aucune fiche disponible dans le corpus t:102.");
+        }
+
+        const clamped = Math.max(0, Math.min(Number(targetIndex) || 0, total - 1));
+        let rec = null;
+
+        if (clamped < state.corpusRecords.length && state.corpusRecords[clamped]) {
+          rec = state.corpusRecords[clamped];
+        } else if (state.notebookRecordsByIndex.has(clamped)) {
+          rec = state.notebookRecordsByIndex.get(clamped);
+        } else {
+          state.notebookError = null;
+          state.notebookLoading = true;
+          renderNotebookOverlayState();
+          updateNotebookControls(null);
+          rec = await fetchNotebookRecord(clamped);
+          if (token !== activeNotebookToken) return;
+        }
+
+        state.notebookLoading = false;
+        state.notebookError = null;
+        renderNotebookOverlayState();
+
+        const oldLeft = nbLeftSlot.firstElementChild;
+        const oldRight = nbRightSlot.firstElementChild;
+        const newLeft = buildNotebookLeftPage(rec, clamped, total);
+        const newRight = buildNotebookRightPage(rec, clamped, total);
+
+        state.notebookIndex = clamped;
+        updateNotebookControls(rec);
+
+        if (animate && oldLeft && oldRight && clamped !== prevIndex) {
+          const dir = direction || (clamped > prevIndex ? "next" : "prev");
+          animateNotebookTurn(oldLeft, oldRight, newLeft, newRight, dir);
+        } else {
+          cancelActiveFlip();
+          nbLeftSlot.replaceChildren(newLeft);
+          nbRightSlot.replaceChildren(newRight);
+        }
+
+        if (total > state.corpusRecords.length && clamped + 1 < total) {
+          fetchNotebookRecord(clamped + 1).catch(() => {});
+        }
+      } catch (err) {
+        if (token !== activeNotebookToken) return;
+        cancelActiveFlip();
+        state.notebookLoading = false;
+        state.notebookError =
+          err && err.message
+            ? err.message
+            : "Erreur réseau lors du chargement du carnet.";
+        renderNotebookOverlayState();
+        updateNotebookControls(null);
+      }
+    }
+
+    function turnNotebookBy(delta) {
+      if (state.notebookLoading) return;
+      const total = getTotalNotebookPages();
+      if (total === 0) return;
+      const nextIndex = Math.max(
+        0,
+        Math.min(state.notebookIndex + delta, total - 1)
+      );
+      if (nextIndex === state.notebookIndex) return;
+      openNotebookAt(nextIndex, {
+        animate: true,
+        direction: delta > 0 ? "next" : "prev"
+      });
+    }
+
     // --- Chargement depuis l'API Heurist ---
     function extractRecordsFromResponse(payload) {
       const container = payload?.heurist || payload?.data || payload || {};
@@ -2563,6 +3246,9 @@
       if (state.view === "search" && nextView !== "search") {
         closeAllManualPopovers(null);
       }
+      if (state.view === "notebook" && nextView !== "notebook") {
+        cancelActiveFlip();
+      }
 
       state.view = nextView;
 
@@ -2613,6 +3299,8 @@
           searchInput.focus({ preventScroll: true });
         } else if (state.view === "random") {
           randomHeading.focus({ preventScroll: true });
+        } else if (state.view === "notebook") {
+          notebookHeading.focus({ preventScroll: true });
         }
       };
 
@@ -2647,10 +3335,15 @@
         } else {
           renderRandomView();
         }
+      } else if (state.view === "notebook") {
+        openNotebookAt(state.notebookIndex, {
+          animate: false,
+          forceRetry: Boolean(state.notebookError)
+        });
       }
     }
 
-    // --- Navigation entre les vues (Présentation / Recherche / Fiche aléatoire) ---
+    // --- Navigation entre les vues (Présentation / Recherche / Fiche aléatoire / Carnet de note) ---
     navHomeBtn.addEventListener("click", () => {
       switchView("home", { moveFocus: true });
     });
@@ -2663,12 +3356,20 @@
       switchView("random", { moveFocus: true });
     });
 
+    navNotebookBtn.addEventListener("click", () => {
+      switchView("notebook", { moveFocus: true });
+    });
+
     ctaSearchBtn.addEventListener("click", () => {
       switchView("search", { moveFocus: true });
     });
 
     ctaRandomBtn.addEventListener("click", () => {
       switchView("random", { moveFocus: true, drawNewRandom: true });
+    });
+
+    ctaNotebookBtn.addEventListener("click", () => {
+      switchView("notebook", { moveFocus: true });
     });
 
     randomBackHomeBtn.addEventListener("click", () => {
@@ -2681,6 +3382,49 @@
 
     randomDrawBtn.addEventListener("click", () => {
       drawRandomRecord();
+    });
+
+    nbBackHomeBtn.addEventListener("click", () => {
+      switchView("home", { moveFocus: true });
+    });
+
+    nbGoSearchBtn.addEventListener("click", () => {
+      switchView("search", { moveFocus: true });
+    });
+
+    nbRandomPageBtn.addEventListener("click", () => {
+      const total = getTotalNotebookPages();
+      if (total <= 1 || state.notebookLoading) return;
+      const randIdx = getRandomIndex(total, state.notebookIndex);
+      openNotebookAt(randIdx, {
+        animate: true,
+        direction: randIdx > state.notebookIndex ? "next" : "prev"
+      });
+    });
+
+    nbPrevBtn.addEventListener("click", () => {
+      turnNotebookBy(-1);
+    });
+
+    nbNextBtn.addEventListener("click", () => {
+      turnNotebookBy(1);
+    });
+
+    nbJumpForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const total = getTotalNotebookPages();
+      if (total === 0 || state.notebookLoading) return;
+      const rawVal = parseInt(nbJumpInput.value, 10);
+      if (!Number.isFinite(rawVal)) return;
+      const target = Math.max(0, Math.min(rawVal - 1, total - 1));
+      if (target === state.notebookIndex) {
+        nbJumpInput.value = String(target + 1);
+        return;
+      }
+      openNotebookAt(target, {
+        animate: true,
+        direction: target > state.notebookIndex ? "next" : "prev"
+      });
     });
 
     // --- Événements de recherche, pagination et raccourcis ---
@@ -2769,7 +3513,7 @@
     bottomPag.prevBtn.addEventListener("click", () => goToPrevPage(true));
     bottomPag.nextBtn.addEventListener("click", () => goToNextPage(true));
 
-    // Raccourci clavier Ctrl + K / Cmd + K (bascule vers la recherche si nécessaire)
+    // Raccourci clavier Ctrl + K / Cmd + K (bascule vers la recherche) et ← / → dans le Carnet de note
     document.addEventListener("keydown", (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -2781,6 +3525,23 @@
         if (searchInput.value) {
           searchInput.select();
         }
+        return;
+      }
+
+      if (
+        state.view === "notebook" &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        (event.key === "ArrowLeft" || event.key === "ArrowRight")
+      ) {
+        const tgt = event.target;
+        const tag = tgt && tgt.tagName ? tgt.tagName.toLowerCase() : "";
+        if (tag === "input" || tag === "textarea" || tag === "select") {
+          return;
+        }
+        event.preventDefault();
+        turnNotebookBy(event.key === "ArrowRight" ? 1 : -1);
       }
     });
 

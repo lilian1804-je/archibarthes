@@ -290,19 +290,23 @@
     padding-block-start: 0.5rem;
   }
 
+  #archibarthes-root :where(.ab-cta-btn, .ab-random-draw-btn, .ab-nav-tab, .ab-nb-nav-btn) svg {
+    flex-shrink: 0;
+  }
+
   #archibarthes-root .ab-cta-btn {
     appearance: none;
-    flex: 1 1 220px;
+    flex: 1 1 180px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.65rem;
     min-block-size: 3.25rem;
-    padding-inline: 1.35rem;
+    padding-inline: 1.15rem;
     padding-block: 0.75rem;
     border-radius: var(--ab-radius);
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.07em;
@@ -329,6 +333,17 @@
 
   #archibarthes-root .ab-cta-random:hover {
     background-color: var(--ab-accent);
+    color: var(--ab-text-inverse);
+  }
+
+  #archibarthes-root .ab-cta-notebook {
+    border: 2px solid var(--ab-badge-violet-text);
+    background-color: var(--ab-badge-violet-bg);
+    color: var(--ab-badge-violet-text);
+  }
+
+  #archibarthes-root .ab-cta-notebook:hover {
+    background-color: var(--ab-badge-violet-text);
     color: var(--ab-text-inverse);
   }
 
@@ -398,11 +413,11 @@
   /* Piliers de présentation */
   #archibarthes-root .ab-home-pillars {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
   }
 
-  @media (max-width: 820px) {
+  @media (max-width: 720px) {
     #archibarthes-root .ab-home-pillars {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -1260,6 +1275,580 @@
     block-size: 6px;
     accent-color: var(--ab-accent);
   }
+
+  /* Vue Carnet de note sur bureau avec cigares */
+  #archibarthes-root .ab-notebook-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background-color: var(--ab-bg-subtle);
+    border: 1px solid var(--ab-border-strong);
+    border-inline-start: 5px solid var(--ab-badge-violet-text);
+  }
+
+  #archibarthes-root .ab-notebook-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-inline-size: 0;
+  }
+
+  #archibarthes-root .ab-notebook-heading {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ab-text-strong);
+  }
+
+  #archibarthes-root .ab-notebook-heading:focus {
+    outline: none;
+  }
+
+  #archibarthes-root .ab-notebook-sub {
+    margin: 0;
+    font-size: 0.825rem;
+    color: var(--ab-text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  #archibarthes-root .ab-notebook-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  #archibarthes-root .ab-notebook-desk {
+    position: relative;
+    container-type: inline-size;
+    border: 2px solid var(--ab-text-primary);
+    border-radius: var(--ab-radius);
+    background-color: #26160c;
+    background-image: url("./assets/desk-cigars-2x.jpg");
+    background-image: image-set(
+      url("./assets/desk-cigars-1x.avif") type("image/avif") 1x,
+      url("./assets/desk-cigars-2x.avif") type("image/avif") 2x,
+      url("./assets/desk-cigars-1x.webp") type("image/webp") 1x,
+      url("./assets/desk-cigars-2x.webp") type("image/webp") 2x,
+      url("./assets/desk-cigars-1x.jpg") type("image/jpeg") 1x,
+      url("./assets/desk-cigars-2x.jpg") type("image/jpeg") 2x
+    );
+    background-size: cover;
+    background-position: 0% 0%;
+    background-repeat: no-repeat;
+    min-block-size: clamp(680px, 80dvh, 900px);
+    padding-block: 1.5rem 2rem;
+    padding-inline: clamp(0.75rem, 2.75vw, 2.25rem);
+    overflow: hidden;
+  }
+
+  #archibarthes-root .ab-notebook-desk::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(
+      circle at 18% 18%,
+      transparent 16%,
+      rgba(12, 7, 4, 0.28) 72%,
+      rgba(10, 5, 2, 0.45) 100%
+    );
+  }
+
+  #archibarthes-root .ab-book-wrap {
+    position: relative;
+    z-index: 1;
+    max-inline-size: 980px;
+    margin-block-start: clamp(14.5rem, 24cqi, 17.5rem);
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.15rem;
+  }
+
+  #archibarthes-root .ab-book-cover {
+    position: relative;
+    padding: 0.7rem;
+    border-radius: 5px;
+    background: linear-gradient(145deg, #2b211c 0%, #1c1512 100%);
+    border: 1px solid #48382f;
+    box-shadow:
+      0 24px 48px rgba(0, 0, 0, 0.62),
+      0 8px 18px rgba(0, 0, 0, 0.42);
+  }
+
+  /* Signet rouge dépassant du bas de la reliure */
+  #archibarthes-root .ab-book-cover::before {
+    content: "";
+    position: absolute;
+    inset-block-end: -14px;
+    inset-inline-start: calc(50% - 7px);
+    inline-size: 14px;
+    block-size: 22px;
+    background-color: var(--ab-accent);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  #archibarthes-root .ab-book-stage {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    perspective: 2200px;
+    background-color: #f6f0e2;
+    border: 1px solid #bfb299;
+    box-shadow:
+      -3px 3px 0 #e0d6c2,
+      -6px 6px 0 #c9bda6,
+      3px 3px 0 #e0d6c2,
+      6px 6px 0 #c9bda6;
+  }
+
+  /* Ombre centrale de la reliure */
+  #archibarthes-root .ab-book-stage::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 50%;
+    transform: translateX(-50%);
+    inline-size: 28px;
+    pointer-events: none;
+    z-index: 4;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(45, 30, 16, 0.1) 35%,
+      rgba(22, 14, 7, 0.34) 50%,
+      rgba(45, 30, 16, 0.1) 65%,
+      transparent 100%
+    );
+  }
+
+  #archibarthes-root .ab-page-slot {
+    min-inline-size: 0;
+  }
+
+  #archibarthes-root .ab-nb-page {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    block-size: 465px;
+    padding: 1.2rem 1.35rem;
+    background-color: #fbf7ed;
+    color: var(--ab-text-primary);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+
+  #archibarthes-root .ab-nb-page--left {
+    border-inline-end: 1px solid #d5cab3;
+    box-shadow: inset -14px 0 20px -14px rgba(45, 32, 20, 0.2);
+  }
+
+  #archibarthes-root .ab-nb-page--right {
+    box-shadow: inset 14px 0 20px -14px rgba(45, 32, 20, 0.2);
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(1.75rem - 1px),
+      rgba(136, 114, 84, 0.16) calc(1.75rem - 1px),
+      rgba(136, 114, 84, 0.16) 1.75rem
+    );
+    background-position: 0 3.35rem;
+  }
+
+  #archibarthes-root .ab-nb-page-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-block-end: 0.6rem;
+    border-block-end: 1px solid #d5cab3;
+  }
+
+  #archibarthes-root .ab-nb-folio {
+    font-family: var(--ab-font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5c4f3d;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #archibarthes-root .ab-nb-scan-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  #archibarthes-root .ab-nb-scan-frame {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 195px;
+    padding: 0.45rem;
+    background-color: #ffffff;
+    border: 1px solid #8a7e68;
+  }
+
+  #archibarthes-root .ab-nb-scan-img {
+    display: block;
+    max-inline-size: 100%;
+    max-block-size: 225px;
+    inline-size: auto;
+    block-size: auto;
+    object-fit: contain;
+  }
+
+  #archibarthes-root .ab-nb-meta-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-block-start: auto;
+    padding-block-start: 0.5rem;
+    border-block-start: 1px dashed #cfc4ae;
+  }
+
+  #archibarthes-root .ab-nb-page-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  #archibarthes-root .ab-nb-title {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #3f3428;
+    padding-block-end: 0.45rem;
+    border-block-end: 1px solid #d5cab3;
+  }
+
+  #archibarthes-root .ab-nb-transcription {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1rem;
+    line-height: 1.75rem;
+    color: #1e1915;
+    overflow-wrap: break-word;
+    text-wrap: pretty;
+  }
+
+  #archibarthes-root .ab-nb-transcription p {
+    margin-block: 0 0.9em;
+  }
+
+  #archibarthes-root .ab-nb-transcription p:last-child {
+    margin-block-end: 0;
+  }
+
+  /* Feuillet 3D qui tourne au changement de fiche */
+  #archibarthes-root .ab-flip-leaf {
+    position: absolute;
+    inset-block: 0;
+    inline-size: 50%;
+    transform-style: preserve-3d;
+    pointer-events: none;
+    z-index: 6;
+    will-change: transform;
+  }
+
+  #archibarthes-root .ab-flip-leaf.is-next {
+    left: 50%;
+    transform-origin: left center;
+  }
+
+  #archibarthes-root .ab-flip-leaf.is-prev {
+    left: 0;
+    transform-origin: right center;
+  }
+
+  #archibarthes-root .ab-flip-leaf.is-mobile {
+    left: 0;
+    inline-size: 100%;
+    transform-origin: left center;
+  }
+
+  #archibarthes-root .ab-flip-leaf.is-mobile .ab-flip-face--front {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #archibarthes-root .ab-flip-leaf.is-mobile .ab-flip-face--back {
+    display: none;
+  }
+
+  #archibarthes-root .ab-flip-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    overflow: hidden;
+    background-color: #fbf7ed;
+  }
+
+  #archibarthes-root .ab-flip-face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      rgba(25, 16, 8, 0.22) 0%,
+      transparent 35%,
+      transparent 70%,
+      rgba(25, 16, 8, 0.14) 100%
+    );
+    opacity: 0;
+  }
+
+  #archibarthes-root .ab-flip-face--front {
+    transform: rotateY(0deg);
+  }
+
+  #archibarthes-root .ab-flip-face--back {
+    transform: rotateY(180deg);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    #archibarthes-root .ab-flip-leaf.is-next.is-animating {
+      animation: ab-book-turn-next 640ms cubic-bezier(0.24, 0.62, 0.34, 1) forwards;
+    }
+
+    #archibarthes-root .ab-flip-leaf.is-prev.is-animating {
+      animation: ab-book-turn-prev 640ms cubic-bezier(0.24, 0.62, 0.34, 1) forwards;
+    }
+
+    #archibarthes-root .ab-flip-leaf.is-mobile.is-next.is-animating {
+      animation: ab-book-turn-mobile-next 460ms cubic-bezier(0.24, 0.62, 0.34, 1) forwards;
+    }
+
+    #archibarthes-root .ab-flip-leaf.is-mobile.is-prev.is-animating {
+      animation: ab-book-turn-mobile-prev 460ms cubic-bezier(0.24, 0.62, 0.34, 1) forwards;
+    }
+
+    #archibarthes-root .ab-flip-leaf.is-animating .ab-flip-face::after {
+      animation: ab-page-turn-shade 640ms ease-in-out forwards;
+    }
+  }
+
+  @keyframes ab-book-turn-next {
+    0% {
+      transform: rotateY(0deg);
+    }
+    45% {
+      transform: rotateY(-88deg) skewY(-1deg);
+    }
+    100% {
+      transform: rotateY(-180deg);
+    }
+  }
+
+  @keyframes ab-book-turn-prev {
+    0% {
+      transform: rotateY(0deg);
+    }
+    45% {
+      transform: rotateY(88deg) skewY(1deg);
+    }
+    100% {
+      transform: rotateY(180deg);
+    }
+  }
+
+  @keyframes ab-book-turn-mobile-next {
+    0% {
+      transform: rotateY(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: rotateY(-105deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes ab-book-turn-mobile-prev {
+    0% {
+      transform: rotateY(-105deg);
+      opacity: 0;
+    }
+    100% {
+      transform: rotateY(0deg);
+      opacity: 1;
+    }
+  }
+
+  @keyframes ab-page-turn-shade {
+    0% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* Barre de feuilletage du carnet sur le bureau */
+  #archibarthes-root .ab-notebook-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    background-color: rgba(251, 247, 237, 0.96);
+    border: 2px solid var(--ab-text-primary);
+    border-radius: var(--ab-radius);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  #archibarthes-root .ab-nb-nav-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-block-size: 2.75rem;
+    padding-inline: 1rem;
+    padding-block: 0.4rem;
+    border: 2px solid var(--ab-text-primary);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+
+  #archibarthes-root .ab-nb-nav-btn:hover:not(:disabled) {
+    background-color: var(--ab-text-primary);
+    color: var(--ab-text-inverse);
+  }
+
+  #archibarthes-root .ab-nb-nav-btn:disabled {
+    border-color: var(--ab-border-strong);
+    color: var(--ab-text-secondary);
+    background-color: var(--ab-bg-subtle);
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  #archibarthes-root .ab-nb-center-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+  }
+
+  #archibarthes-root .ab-nb-counter {
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ab-text-primary);
+  }
+
+  #archibarthes-root .ab-book-cover[hidden],
+  #archibarthes-root .ab-nb-state-overlay[hidden] {
+    display: none;
+  }
+
+  #archibarthes-root .ab-nb-jump-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ab-text-primary);
+  }
+
+  #archibarthes-root .ab-nb-jump-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  #archibarthes-root .ab-nb-jump-btn {
+    min-block-size: 2.75rem;
+  }
+
+  #archibarthes-root .ab-nb-jump-input {
+    inline-size: 4.75rem;
+    min-block-size: 2.75rem;
+    padding-inline: 0.5rem;
+    border: 2px solid var(--ab-text-secondary);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    font-family: var(--ab-font-mono);
+    font-size: 0.85rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #archibarthes-root .ab-nb-jump-input:focus {
+    outline: none;
+    border-color: var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-nb-state-overlay {
+    padding: 2rem 1.5rem;
+    background-color: rgba(251, 247, 237, 0.96);
+    border: 2px solid var(--ab-text-primary);
+  }
+
+  @media (max-width: 720px) {
+    #archibarthes-root .ab-notebook-desk {
+      background-position: 20% 0%;
+    }
+  }
+
+  @container (max-width: 720px) {
+    #archibarthes-root .ab-book-wrap {
+      margin-block-start: clamp(9rem, 26cqi, 12.5rem);
+    }
+
+    #archibarthes-root .ab-book-stage {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    #archibarthes-root .ab-book-stage::after {
+      display: none;
+    }
+
+    #archibarthes-root .ab-nb-page {
+      block-size: auto;
+      min-block-size: 240px;
+      max-block-size: 46dvh;
+    }
+
+    #archibarthes-root .ab-nb-page--left {
+      border-inline-end: 0;
+      border-block-end: 2px solid #d5cab3;
+      box-shadow: none;
+    }
+
+    #archibarthes-root .ab-nb-page--right {
+      box-shadow: none;
+    }
+  }
 }
 
 @layer archibarthes.overlays {
@@ -1468,7 +2057,7 @@
 
   /* Respect des préférences système */
   @media (prefers-reduced-motion: reduce) {
-    #archibarthes-root :where(.ab-nav-tab, .ab-cta-btn, .ab-random-draw-btn, .ab-search-field, .ab-search-submit, .ab-filter-btn, .ab-filter-chevron, .ab-page-btn, .ab-fullscreen-btn, .ab-notice-link, .ab-option-row, .ab-checkbox::before) {
+    #archibarthes-root :where(.ab-nav-tab, .ab-cta-btn, .ab-random-draw-btn, .ab-nb-nav-btn, .ab-search-field, .ab-search-submit, .ab-filter-btn, .ab-filter-chevron, .ab-page-btn, .ab-fullscreen-btn, .ab-notice-link, .ab-option-row, .ab-checkbox::before) {
       transition: none !important;
     }
   }
@@ -1482,8 +2071,35 @@
     #archibarthes-root .ab-hero-aside,
     #archibarthes-root .ab-metric-card,
     #archibarthes-root .ab-pillar-card,
-    #archibarthes-root .ab-random-toolbar {
+    #archibarthes-root .ab-random-toolbar,
+    #archibarthes-root .ab-notebook-toolbar,
+    #archibarthes-root .ab-notebook-desk,
+    #archibarthes-root .ab-book-cover,
+    #archibarthes-root .ab-book-stage,
+    #archibarthes-root .ab-nb-page,
+    #archibarthes-root .ab-notebook-controls {
       border-color: CanvasText;
+    }
+
+    #archibarthes-root .ab-notebook-desk {
+      background-image: none;
+      background-color: Canvas;
+    }
+
+    #archibarthes-root .ab-notebook-desk::after,
+    #archibarthes-root .ab-book-cover::before,
+    #archibarthes-root .ab-book-stage::after {
+      display: none;
+    }
+
+    #archibarthes-root .ab-book-cover,
+    #archibarthes-root .ab-book-stage,
+    #archibarthes-root .ab-nb-page,
+    #archibarthes-root .ab-notebook-controls {
+      background-color: Canvas;
+      background-image: none;
+      color: CanvasText;
+      box-shadow: none;
     }
 
     #archibarthes-root .ab-card-badge,
@@ -1491,7 +2107,8 @@
     #archibarthes-root .ab-hero-eyebrow,
     #archibarthes-root .ab-nav-tab[aria-current="page"],
     #archibarthes-root .ab-cta-btn,
-    #archibarthes-root .ab-random-draw-btn {
+    #archibarthes-root .ab-random-draw-btn,
+    #archibarthes-root .ab-nb-nav-btn {
       border: 1px solid CanvasText;
     }
 
