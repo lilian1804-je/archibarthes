@@ -69,13 +69,42 @@
     gap: 1.5rem;
   }
 
+  /* Gestion des vues SPA en cache via content-visibility */
+  #archibarthes-root .ab-view {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  #archibarthes-root .ab-view:focus {
+    outline: none;
+  }
+
+  #archibarthes-root .ab-view.is-inactive {
+    content-visibility: hidden;
+    position: absolute;
+    inline-size: 0;
+    block-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  @supports not (content-visibility: hidden) {
+    #archibarthes-root .ab-view.is-inactive {
+      display: none;
+    }
+  }
+
   /* En-tête éditorial Bauhaus */
   #archibarthes-root .ab-masthead {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 1rem 1.25rem;
     padding-block-end: 1.25rem;
     border-block-end: 3px solid var(--ab-text-primary);
   }
@@ -84,6 +113,60 @@
     display: flex;
     align-items: flex-start;
     gap: 0.875rem;
+  }
+
+  #archibarthes-root .ab-masthead-aside {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.625rem;
+  }
+
+  @media (max-width: 820px) {
+    #archibarthes-root .ab-masthead-aside {
+      justify-content: flex-start;
+    }
+  }
+
+  #archibarthes-root .ab-view-nav {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  #archibarthes-root .ab-nav-tab {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 2.35rem;
+    padding-inline: 0.85rem;
+    padding-block: 0.3rem;
+    border: 1px solid var(--ab-border-strong);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-text-primary);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+
+  #archibarthes-root .ab-nav-tab:hover:not([aria-current="page"]) {
+    border-color: var(--ab-text-primary);
+    background-color: var(--ab-bg-muted);
+  }
+
+  #archibarthes-root .ab-nav-tab[aria-current="page"] {
+    background-color: var(--ab-text-primary);
+    border-color: var(--ab-text-primary);
+    color: var(--ab-text-inverse);
+    box-shadow: inset 0 -3px 0 var(--ab-accent);
   }
 
   #archibarthes-root .ab-brand-mark {
@@ -123,7 +206,8 @@
   #archibarthes-root .ab-corpus-badge {
     display: inline-flex;
     align-items: center;
-    padding: 0.375rem 0.75rem;
+    min-block-size: 2.35rem;
+    padding: 0.3rem 0.75rem;
     border: 1px solid var(--ab-border-strong);
     background-color: var(--ab-bg-subtle);
     font-size: 0.75rem;
@@ -132,6 +216,311 @@
     letter-spacing: 0.06em;
     font-variant-numeric: tabular-nums;
     color: var(--ab-text-primary);
+  }
+
+  /* Page de présentation (Accueil) */
+  #archibarthes-root .ab-home-hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(240px, 0.9fr);
+    gap: 1.5rem 2rem;
+    padding: clamp(1.5rem, 1.1rem + 1.5vw, 2.5rem);
+    background-color: var(--ab-bg-page);
+    border: 2px solid var(--ab-text-primary);
+    border-block-start: 6px solid var(--ab-accent);
+  }
+
+  @media (max-width: 820px) {
+    #archibarthes-root .ab-home-hero {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  #archibarthes-root .ab-hero-main {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.125rem;
+    min-inline-size: 0;
+  }
+
+  #archibarthes-root .ab-hero-eyebrow {
+    display: inline-block;
+    margin: 0;
+    padding: 0.25rem 0.6rem;
+    background-color: var(--ab-accent);
+    color: var(--ab-text-inverse);
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  #archibarthes-root .ab-hero-title {
+    margin: 0;
+    font-size: clamp(1.5rem, 1.2rem + 1.35vw, 2.2rem);
+    font-weight: 800;
+    line-height: 1.18;
+    letter-spacing: -0.02em;
+    color: var(--ab-text-strong);
+    text-wrap: balance;
+  }
+
+  #archibarthes-root .ab-hero-title:focus {
+    outline: none;
+  }
+
+  #archibarthes-root .ab-hero-lead {
+    margin: 0;
+    font-size: 1.03rem;
+    line-height: 1.7;
+    color: var(--ab-text-primary);
+    max-inline-size: 62ch;
+    text-wrap: pretty;
+  }
+
+  #archibarthes-root .ab-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.875rem;
+    inline-size: 100%;
+    padding-block-start: 0.5rem;
+  }
+
+  #archibarthes-root .ab-cta-btn {
+    appearance: none;
+    flex: 1 1 220px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    min-block-size: 3.25rem;
+    padding-inline: 1.35rem;
+    padding-block: 0.75rem;
+    border-radius: var(--ab-radius);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  }
+
+  #archibarthes-root .ab-cta-search {
+    border: 2px solid var(--ab-text-primary);
+    background-color: var(--ab-text-primary);
+    color: var(--ab-text-inverse);
+  }
+
+  #archibarthes-root .ab-cta-search:hover {
+    background-color: var(--ab-accent);
+    border-color: var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-cta-random {
+    border: 2px solid var(--ab-accent);
+    background-color: var(--ab-bg-page);
+    color: var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-cta-random:hover {
+    background-color: var(--ab-accent);
+    color: var(--ab-text-inverse);
+  }
+
+  /* Colonne droite du hero : repères chiffrés Bauhaus */
+  #archibarthes-root .ab-hero-aside {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem;
+    background-color: var(--ab-bg-subtle);
+    border: 1px solid var(--ab-border-strong);
+    min-inline-size: 0;
+  }
+
+  #archibarthes-root .ab-metrics-title {
+    margin: 0;
+    padding-block-end: 0.5rem;
+    border-block-end: 2px solid var(--ab-text-primary);
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ab-text-primary);
+  }
+
+  #archibarthes-root .ab-hero-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  #archibarthes-root .ab-metric-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.75rem;
+    background-color: var(--ab-bg-page);
+    border: 1px solid var(--ab-border-strong);
+  }
+
+  #archibarthes-root .ab-metric-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ab-text-secondary);
+  }
+
+  #archibarthes-root .ab-metric-value {
+    margin: 0;
+    font-size: 1.375rem;
+    font-weight: 800;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    color: var(--ab-text-strong);
+  }
+
+  #archibarthes-root .ab-metric-note {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--ab-text-secondary);
+  }
+
+  /* Piliers de présentation */
+  #archibarthes-root .ab-home-pillars {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  @media (max-width: 820px) {
+    #archibarthes-root .ab-home-pillars {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  #archibarthes-root .ab-pillar-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.125rem 1.25rem;
+    background-color: var(--ab-bg-subtle);
+    border: 1px solid var(--ab-border-strong);
+    border-inline-start: 4px solid var(--ab-text-primary);
+  }
+
+  #archibarthes-root .ab-pillar-index {
+    font-family: var(--ab-font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-pillar-title {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ab-text-strong);
+  }
+
+  #archibarthes-root .ab-pillar-desc {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: var(--ab-text-secondary);
+  }
+
+  /* Barre d'actions de la vue Fiche aléatoire */
+  #archibarthes-root .ab-random-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background-color: var(--ab-bg-subtle);
+    border: 1px solid var(--ab-border-strong);
+    border-inline-start: 5px solid var(--ab-accent);
+  }
+
+  #archibarthes-root .ab-random-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-inline-size: 0;
+  }
+
+  #archibarthes-root .ab-random-heading {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ab-text-strong);
+  }
+
+  #archibarthes-root .ab-random-heading:focus {
+    outline: none;
+  }
+
+  #archibarthes-root .ab-random-sub {
+    margin: 0;
+    font-size: 0.825rem;
+    color: var(--ab-text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  #archibarthes-root .ab-random-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  #archibarthes-root .ab-random-draw-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-block-size: 2.35rem;
+    padding-inline: 1rem;
+    padding-block: 0.35rem;
+    border: 1px solid var(--ab-accent);
+    border-radius: var(--ab-radius);
+    background-color: var(--ab-accent);
+    color: var(--ab-text-inverse);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+
+  #archibarthes-root .ab-random-draw-btn:hover:not(:disabled) {
+    background-color: var(--ab-accent-hover);
+    border-color: var(--ab-accent-hover);
+  }
+
+  #archibarthes-root .ab-random-draw-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  #archibarthes-root .ab-random-stage {
+    min-block-size: 14rem;
   }
 }
 
@@ -1075,7 +1464,7 @@
 
   /* Respect des préférences système */
   @media (prefers-reduced-motion: reduce) {
-    #archibarthes-root :where(.ab-search-field, .ab-search-submit, .ab-filter-btn, .ab-filter-chevron, .ab-page-btn, .ab-fullscreen-btn, .ab-notice-link, .ab-option-row, .ab-checkbox::before) {
+    #archibarthes-root :where(.ab-nav-tab, .ab-cta-btn, .ab-random-draw-btn, .ab-search-field, .ab-search-submit, .ab-filter-btn, .ab-filter-chevron, .ab-page-btn, .ab-fullscreen-btn, .ab-notice-link, .ab-option-row, .ab-checkbox::before) {
       transition: none !important;
     }
   }
@@ -1084,12 +1473,21 @@
     #archibarthes-root .ab-card,
     #archibarthes-root .ab-controls,
     #archibarthes-root .ab-popover,
-    #archibarthes-root .ab-meta-block {
+    #archibarthes-root .ab-meta-block,
+    #archibarthes-root .ab-home-hero,
+    #archibarthes-root .ab-hero-aside,
+    #archibarthes-root .ab-metric-card,
+    #archibarthes-root .ab-pillar-card,
+    #archibarthes-root .ab-random-toolbar {
       border-color: CanvasText;
     }
 
     #archibarthes-root .ab-card-badge,
-    #archibarthes-root .ab-filter-badge {
+    #archibarthes-root .ab-filter-badge,
+    #archibarthes-root .ab-hero-eyebrow,
+    #archibarthes-root .ab-nav-tab[aria-current="page"],
+    #archibarthes-root .ab-cta-btn,
+    #archibarthes-root .ab-random-draw-btn {
       border: 1px solid CanvasText;
     }
 

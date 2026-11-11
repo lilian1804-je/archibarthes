@@ -885,6 +885,36 @@
     };
   }
 
+  function getRandomIndex(length, excludeIndex = -1) {
+    if (length <= 1) return 0;
+    const pickRaw = () => {
+      if (
+        typeof crypto !== "undefined" &&
+        typeof crypto.getRandomValues === "function"
+      ) {
+        const buf = new Uint32Array(1);
+        crypto.getRandomValues(buf);
+        return Math.floor((buf[0] / 4294967296) * length);
+      }
+      return Math.floor(Math.random() * length);
+    };
+
+    let idx = pickRaw();
+    if (idx === excludeIndex) {
+      idx = (idx + 1 + (pickRaw() % (length - 1))) % length;
+    }
+    return idx;
+  }
+
+  function formatFrNumber(num) {
+    if (typeof num !== "number" || !Number.isFinite(num)) return "—";
+    try {
+      return new Intl.NumberFormat("fr-FR").format(num);
+    } catch (_e) {
+      return String(num);
+    }
+  }
+
   function createSvgIcon(type) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
@@ -914,6 +944,27 @@
       const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
       poly.setAttribute("points", "6 9 12 15 18 9");
       svg.appendChild(poly);
+    } else if (type === "shuffle") {
+      const p1 = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      p1.setAttribute("points", "16 3 21 3 21 8");
+      const l1 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      l1.setAttribute("x1", "4");
+      l1.setAttribute("y1", "20");
+      l1.setAttribute("x2", "21");
+      l1.setAttribute("y2", "3");
+      const p2 = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      p2.setAttribute("points", "21 16 21 21 16 21");
+      const l2 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      l2.setAttribute("x1", "15");
+      l2.setAttribute("y1", "15");
+      l2.setAttribute("x2", "21");
+      l2.setAttribute("y2", "21");
+      const l3 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      l3.setAttribute("x1", "4");
+      l3.setAttribute("y1", "4");
+      l3.setAttribute("x2", "9");
+      l3.setAttribute("y2", "9");
+      svg.append(p1, l1, p2, l2, l3);
     }
     return svg;
   }
@@ -928,15 +979,27 @@
       /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || "");
 
     const state = {
+      view: "home",
       searchQuery: "",
       offset: 0,
       limit: PAGE_LIMIT,
       totalCount: 0,
       records: [],
-      isLoading: true,
+      isLoading: false,
       error: null,
       facetsInitialized: false,
       facets: { dates: [], persons: [], places: [] },
+      corpusRecords: [],
+      corpusTotal: 0,
+      corpusLoaded: false,
+      corpusLoading: false,
+      corpusError: null,
+      currentRandomRecord: null,
+      randomDrawCount: 0,
+      randomLoading: false,
+      randomError: null,
+      drawnRandomIds: new Set(),
+      lastRandomOffset: -1,
       selected: {
         dates: new Set(),
         persons: new Set(),
@@ -950,8 +1013,11 @@
     };
 
     const queryCache = new Map();
+    let corpusPromise = null;
     let activeAbortController = null;
     let debounceTimer = null;
+    let activeRandomToken = 0;
+    let activeViewNavId = 0;
 
     // Construction du squelette DOM
     root.replaceChildren();
@@ -959,7 +1025,7 @@
     shell.className = "ab-shell";
     shell.setAttribute("aria-label", "Explorateur ArchiBarthes — Fiches de Roland Barthes");
 
-    // 1. En-tête éditorial
+    // 1. En-tête éditorial + navigation entre les vues
     const masthead = document.createElement("header");
     masthead.className = "ab-masthead";
 
@@ -986,13 +1052,181 @@
     titleGroup.append(kicker, h1, subtitle);
     brand.append(brandMark, titleGroup);
 
+    const mastheadAside = document.createElement("div");
+    mastheadAside.className = "ab-masthead-aside";
+
+    const viewNav = document.createElement("nav");
+    viewNav.className = "ab-view-nav";
+    viewNav.setAttribute("aria-label", "Navigation ArchiBarthes");
+
+    const createNavTab = (viewKey, labelText) => {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "ab-nav-tab";
+      tab.dataset.view = viewKey;
+      tab.textContent = labelText;
+      if (viewKey === "home") {
+        tab.setAttribute("aria-current", "page");
+      }
+      return tab;
+    };
+
+    const navHomeBtn = createNavTab("home", "Présentation");
+    const navSearchBtn = createNavTab("search", "Recherche");
+    const navRandomBtn = createNavTab("random", "Fiche aléatoire");
+    const navButtons = {
+      home: navHomeBtn,
+      search: navSearchBtn,
+      random: navRandomBtn
+    };
+    viewNav.append(navHomeBtn, navSearchBtn, navRandomBtn);
+
     const corpusBadge = document.createElement("div");
     corpusBadge.className = "ab-corpus-badge";
     corpusBadge.textContent = "Corpus t:102";
 
-    masthead.append(brand, corpusBadge);
+    mastheadAside.append(viewNav, corpusBadge);
+    masthead.append(brand, mastheadAside);
 
-    // 2. Moteur de recherche & filtres (<search>)
+    // 2A. Vue 1 : Page de présentation (vue d'accueil par défaut)
+    const homeView = document.createElement("div");
+    homeView.className = "ab-view ab-view-home";
+    homeView.dataset.view = "home";
+    homeView.setAttribute("aria-hidden", "false");
+
+    const homeHero = document.createElement("section");
+    homeHero.className = "ab-home-hero";
+    homeHero.setAttribute("aria-labelledby", "ab-home-heading");
+
+    const heroMain = document.createElement("div");
+    heroMain.className = "ab-hero-main";
+
+    const heroEyebrow = document.createElement("p");
+    heroEyebrow.className = "ab-hero-eyebrow";
+    heroEyebrow.textContent = "Présentation du fonds · NAF 28630";
+
+    const homeHeading = document.createElement("h2");
+    homeHeading.id = "ab-home-heading";
+    homeHeading.className = "ab-hero-title";
+    homeHeading.tabIndex = -1;
+    homeHeading.textContent = "Le Grand Fichier de Roland Barthes";
+
+    const heroLead = document.createElement("p");
+    heroLead.className = "ab-hero-lead";
+    heroLead.textContent =
+      "Instrument de travail quotidien, le Grand Fichier rassemble les notes de lecture, fragments critiques et repères biographiques rédigés sur fiches bristol par Roland Barthes. Cette interface donne accès aux fac-similés manuscrits conservés à la Bibliothèque nationale de France ainsi qu’à leur transcription critique structurée dans Heurist.";
+
+    const heroActions = document.createElement("div");
+    heroActions.className = "ab-hero-actions";
+
+    const ctaSearchBtn = document.createElement("button");
+    ctaSearchBtn.type = "button";
+    ctaSearchBtn.className = "ab-cta-btn ab-cta-search";
+    ctaSearchBtn.appendChild(createSvgIcon("search"));
+    const ctaSearchLabel = document.createElement("span");
+    ctaSearchLabel.textContent = "Accéder à la recherche →";
+    ctaSearchBtn.appendChild(ctaSearchLabel);
+
+    const ctaRandomBtn = document.createElement("button");
+    ctaRandomBtn.type = "button";
+    ctaRandomBtn.className = "ab-cta-btn ab-cta-random";
+    ctaRandomBtn.appendChild(createSvgIcon("shuffle"));
+    const ctaRandomLabel = document.createElement("span");
+    ctaRandomLabel.textContent = "Générer une fiche aléatoire";
+    ctaRandomBtn.appendChild(ctaRandomLabel);
+
+    heroActions.append(ctaSearchBtn, ctaRandomBtn);
+    heroMain.append(heroEyebrow, homeHeading, heroLead, heroActions);
+
+    const heroAside = document.createElement("aside");
+    heroAside.className = "ab-hero-aside";
+    heroAside.setAttribute("aria-label", "Repères chiffrés du corpus");
+
+    const metricsTitle = document.createElement("h3");
+    metricsTitle.className = "ab-metrics-title";
+    metricsTitle.textContent = "Repères du corpus (t:102)";
+
+    const metricsList = document.createElement("dl");
+    metricsList.className = "ab-hero-metrics";
+
+    const createMetricCard = (labelText) => {
+      const card = document.createElement("div");
+      card.className = "ab-metric-card";
+      const dt = document.createElement("dt");
+      dt.className = "ab-metric-label";
+      dt.textContent = labelText;
+      const dd = document.createElement("dd");
+      dd.className = "ab-metric-value";
+      dd.textContent = "…";
+      card.append(dt, dd);
+      metricsList.appendChild(card);
+      return dd;
+    };
+
+    const metricCountVal = createMetricCard("Fiches indexées");
+    const metricDatesVal = createMetricCard("Années datées");
+    const metricPersonsVal = createMetricCard("Personnes & auteurs");
+    const metricPlacesVal = createMetricCard("Lieux mentionnés");
+
+    const metricNote = document.createElement("p");
+    metricNote.className = "ab-metric-note";
+    metricNote.textContent = `Base Heurist ${config.db} — fac-similés BnF et transcriptions diplomatiques.`;
+
+    heroAside.append(metricsTitle, metricsList, metricNote);
+    homeHero.append(heroMain, heroAside);
+
+    const homePillars = document.createElement("div");
+    homePillars.className = "ab-home-pillars";
+
+    const pillarDefs = [
+      {
+        index: "01 · Moteur de recherche",
+        title: "Recherche & facettes combinées",
+        desc: `Interrogation plein texte (raccourci ${isApplePlatform ? "⌘K" : "Ctrl+K"}), filtres croisés par Date, Personne et Lieu avec pagination par lots de 20 fiches.`
+      },
+      {
+        index: "02 · Lecture synoptique",
+        title: "Manuscrit & transcription",
+        desc: "Confrontation directe du scan manuscrit (vues Recto / Verso et ouverture plein écran) avec le texte critique annoté et sa notice complète."
+      },
+      {
+        index: "03 · Exploration libre",
+        title: "Tirage aléatoire dans le fichier",
+        desc: "Ouverture immédiate d’une fiche tirée au sort dans le fonds pour découvrir une note de Roland Barthes au hasard de l’archive."
+      }
+    ];
+
+    for (const p of pillarDefs) {
+      const card = document.createElement("article");
+      card.className = "ab-pillar-card";
+
+      const pIdx = document.createElement("span");
+      pIdx.className = "ab-pillar-index";
+      pIdx.textContent = p.index;
+
+      const pTitle = document.createElement("h3");
+      pTitle.className = "ab-pillar-title";
+      pTitle.textContent = p.title;
+
+      const pDesc = document.createElement("p");
+      pDesc.className = "ab-pillar-desc";
+      pDesc.textContent = p.desc;
+
+      card.append(pIdx, pTitle, pDesc);
+      homePillars.appendChild(card);
+    }
+
+    homeView.append(homeHero, homePillars);
+
+    // 2B. Vue 2 : Page Recherche & filtres (cachée et inerte au départ)
+    const searchView = document.createElement("div");
+    searchView.className = "ab-view ab-view-search is-inactive";
+    searchView.dataset.view = "search";
+    searchView.setAttribute("aria-hidden", "true");
+    searchView.setAttribute("inert", "");
+    searchView.inert = true;
+
+    // Moteur de recherche & filtres (<search>)
     const searchLandmark = document.createElement("search");
     searchLandmark.className = "ab-controls";
     searchLandmark.setAttribute("aria-label", "Recherche et filtres des fiches");
@@ -1166,7 +1400,7 @@
 
     const statusCount = document.createElement("span");
     statusCount.className = "ab-status-count";
-    statusCount.setAttribute("aria-live", "polite");
+    statusCount.setAttribute("aria-live", "off");
     statusCount.textContent = "Chargement du corpus…";
 
     const statusPage = document.createElement("span");
@@ -1215,7 +1449,70 @@
     const bottomPag = createPaginationNav("Pagination inférieure");
     bottomPagWrap.append(bottomPageText, bottomPag.nav);
 
-    shell.append(masthead, searchLandmark, statusBar, resultsRegion, bottomPagWrap);
+    searchView.append(searchLandmark, statusBar, resultsRegion, bottomPagWrap);
+
+    // 2C. Vue 3 : Page Fiche générée aléatoirement (cachée et inerte au départ)
+    const randomView = document.createElement("div");
+    randomView.className = "ab-view ab-view-random is-inactive";
+    randomView.dataset.view = "random";
+    randomView.setAttribute("aria-hidden", "true");
+    randomView.setAttribute("inert", "");
+    randomView.inert = true;
+
+    const randomToolbar = document.createElement("div");
+    randomToolbar.className = "ab-random-toolbar";
+
+    const randomInfo = document.createElement("div");
+    randomInfo.className = "ab-random-info";
+
+    const randomHeading = document.createElement("h2");
+    randomHeading.id = "ab-random-heading";
+    randomHeading.className = "ab-random-heading";
+    randomHeading.tabIndex = -1;
+    randomHeading.textContent = "Fiche générée aléatoirement";
+
+    const randomSub = document.createElement("p");
+    randomSub.className = "ab-random-sub";
+    randomSub.textContent = "Tirage aléatoire dans l’ensemble du corpus t:102.";
+
+    randomInfo.append(randomHeading, randomSub);
+
+    const randomActions = document.createElement("div");
+    randomActions.className = "ab-random-actions";
+
+    const randomBackHomeBtn = document.createElement("button");
+    randomBackHomeBtn.type = "button";
+    randomBackHomeBtn.className = "ab-page-btn";
+    randomBackHomeBtn.textContent = "← Présentation";
+
+    const randomGoSearchBtn = document.createElement("button");
+    randomGoSearchBtn.type = "button";
+    randomGoSearchBtn.className = "ab-page-btn";
+    randomGoSearchBtn.textContent = "Accéder à la recherche";
+
+    const randomDrawBtn = document.createElement("button");
+    randomDrawBtn.type = "button";
+    randomDrawBtn.className = "ab-random-draw-btn";
+    randomDrawBtn.appendChild(createSvgIcon("shuffle"));
+    const randomDrawLabel = document.createElement("span");
+    randomDrawLabel.textContent = "Autre fiche aléatoire";
+    randomDrawBtn.appendChild(randomDrawLabel);
+
+    randomActions.append(randomBackHomeBtn, randomGoSearchBtn, randomDrawBtn);
+    randomToolbar.append(randomInfo, randomActions);
+
+    const randomStage = document.createElement("div");
+    randomStage.className = "ab-random-stage";
+
+    randomView.append(randomToolbar, randomStage);
+
+    const viewElements = {
+      home: homeView,
+      search: searchView,
+      random: randomView
+    };
+
+    shell.append(masthead, homeView, searchView, randomView);
     root.appendChild(shell);
 
     // --- Positionnement et gestion des popovers ---
@@ -1533,7 +1830,11 @@
       return box;
     }
 
-    function renderCard(rec) {
+    function renderCard(rec, options = {}) {
+      const titleTag = options.titleTag === "h3" ? "h3" : "h2";
+      const anchorKey = options.idPrefix
+        ? `${options.idPrefix}-${rec.id}`
+        : rec.id;
       const article = document.createElement("article");
       article.className = "ab-card";
 
@@ -1641,15 +1942,15 @@
       const textCol = document.createElement("div");
       textCol.className = "ab-card-text-col";
 
-      const titleH2 = document.createElement("h2");
-      titleH2.className = "ab-card-title";
-      titleH2.textContent = rec.title;
+      const titleHeading = document.createElement(titleTag);
+      titleHeading.className = "ab-card-title";
+      titleHeading.textContent = rec.title;
 
       const transDiv = document.createElement("div");
       transDiv.className = "ab-transcription";
-      renderSanitizedTranscription(transDiv, rec.transcriptionHtml, rec.id);
+      renderSanitizedTranscription(transDiv, rec.transcriptionHtml, anchorKey);
 
-      textCol.append(titleH2, transDiv);
+      textCol.append(titleHeading, transDiv);
       body.append(scanCol, textCol);
 
       // Pied de fiche : métadonnées encadrées + Notice complète →
@@ -1703,10 +2004,31 @@
       return article;
     }
 
+    function syncStatusLiveMode() {
+      const shouldAnnounce =
+        state.view === "search" && !state.isLoading && !state.error;
+      statusCount.setAttribute("aria-live", shouldAnnounce ? "polite" : "off");
+    }
+
+    function updateHomeMetrics() {
+      const count = state.corpusTotal || state.corpusRecords.length;
+      if (count > 0) {
+        corpusBadge.textContent = `${formatFrNumber(count)} fiches · t:${BASE_RECTYPE}`;
+        metricCountVal.textContent = formatFrNumber(count);
+      }
+      if (state.facetsInitialized) {
+        metricDatesVal.textContent = formatFrNumber(state.facets.dates.length);
+        metricPersonsVal.textContent = formatFrNumber(state.facets.persons.length);
+        metricPlacesVal.textContent = formatFrNumber(state.facets.places.length);
+      }
+    }
+
     function renderResults() {
       const total = state.totalCount;
       const currentPage = Math.floor(state.offset / state.limit) + 1;
       const totalPages = Math.max(1, Math.ceil(total / state.limit));
+
+      syncStatusLiveMode();
 
       if (state.isLoading) {
         statusCount.textContent = "Chargement des fiches…";
@@ -1758,7 +2080,7 @@
         retryBtn.type = "button";
         retryBtn.className = "ab-page-btn";
         retryBtn.textContent = "Réessayer";
-        retryBtn.addEventListener("click", () => executeSearch());
+        retryBtn.addEventListener("click", () => executeSearch({ forceRetry: true }));
 
         errBox.append(title, desc, retryBtn);
         resultsRegion.replaceChildren(errBox);
@@ -1811,10 +2133,76 @@
       list.className = "ab-cards-list";
       const frag = document.createDocumentFragment();
       for (const rec of state.records) {
-        frag.appendChild(renderCard(rec));
+        frag.appendChild(renderCard(rec, { titleTag: "h2", idPrefix: "s" }));
       }
       list.appendChild(frag);
       resultsRegion.replaceChildren(list);
+    }
+
+    function renderRandomView() {
+      randomDrawBtn.disabled = state.randomLoading;
+
+      if (state.randomLoading) {
+        randomSub.textContent = "Sélection d’une fiche aléatoire en cours…";
+
+        const loadingBox = document.createElement("div");
+        loadingBox.className = "ab-state-box";
+
+        const title = document.createElement("p");
+        title.className = "ab-state-title";
+        title.textContent = "Tirage dans l’archive Heurist";
+
+        const desc = document.createElement("p");
+        desc.className = "ab-state-desc";
+        desc.textContent = `Base ${config.db} — chargement d’une fiche aléatoire…`;
+
+        const progress = document.createElement("progress");
+        progress.className = "ab-progress";
+        progress.setAttribute("aria-label", "Chargement d’une fiche aléatoire en cours");
+
+        loadingBox.append(title, desc, progress);
+        randomStage.replaceChildren(loadingBox);
+        return;
+      }
+
+      if (state.randomError) {
+        randomSub.textContent = "Erreur lors du tirage aléatoire.";
+
+        const errBox = document.createElement("div");
+        errBox.className = "ab-state-box is-error";
+        errBox.setAttribute("role", "alert");
+
+        const title = document.createElement("p");
+        title.className = "ab-state-title";
+        title.textContent = "Impossible d’afficher une fiche aléatoire";
+
+        const desc = document.createElement("p");
+        desc.className = "ab-state-desc";
+        desc.textContent = state.randomError;
+
+        const retryBtn = document.createElement("button");
+        retryBtn.type = "button";
+        retryBtn.className = "ab-page-btn";
+        retryBtn.textContent = "Réessayer";
+        retryBtn.addEventListener("click", () => drawRandomRecord());
+
+        errBox.append(title, desc, retryBtn);
+        randomStage.replaceChildren(errBox);
+        return;
+      }
+
+      if (!state.currentRandomRecord) {
+        randomSub.textContent = "Cliquez sur « Autre fiche aléatoire » pour lancer un tirage.";
+        randomStage.replaceChildren();
+        return;
+      }
+
+      const rec = state.currentRandomRecord;
+      const totalLabel = formatFrNumber(
+        state.corpusTotal || state.corpusRecords.length
+      );
+      randomSub.textContent = `Tirage n° ${state.randomDrawCount} — Fiche BnF n° ${rec.numero} (sur ${totalLabel} fiches)`;
+      randomStage.replaceChildren(renderCard(rec, { titleTag: "h3", idPrefix: "r" }));
     }
 
     // --- Chargement depuis l'API Heurist ---
@@ -1847,14 +2235,215 @@
       };
     }
 
+    async function fetchHeuristRecords(q, limit, offset, signal) {
+      const params = new URLSearchParams();
+      params.set("db", config.db);
+      params.set("q", q);
+      params.set("limit", String(limit));
+      params.set("offset", String(offset));
+      params.set("format", "json");
+      params.set("extended", "2");
+
+      const requestUrl = `${config.recordOutputUrl}?${params.toString()}`;
+      const response = await fetch(requestUrl, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal
+      });
+
+      const rawText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch (_parseErr) {
+        throw new Error(
+          `Réponse non JSON reçue depuis Heurist (HTTP ${response.status}).`
+        );
+      }
+
+      if (!response.ok || data.error) {
+        const msg =
+          data.message?.replace(/<[^>]+>/g, " ").trim() ||
+          data.error ||
+          `Erreur HTTP ${response.status}`;
+        throw new Error(msg);
+      }
+
+      const { rawRecords, serverTotal } = extractRecordsFromResponse(data);
+      const normalized = rawRecords.map((r) => normalizeRecord(r, config));
+      const serverDidSlice =
+        serverTotal !== null &&
+        serverTotal > normalized.length &&
+        normalized.length <= limit;
+
+      return {
+        normalized,
+        serverTotal,
+        serverDidSlice
+      };
+    }
+
+    function applyBaseCorpusPayload(normalized, serverTotal, serverDidSlice) {
+      state.corpusRecords = normalized;
+      state.corpusTotal = serverDidSlice ? serverTotal : normalized.length;
+      state.corpusLoaded = true;
+      state.corpusLoading = false;
+      state.corpusError = null;
+
+      if (!state.facetsInitialized) {
+        state.facets = buildFacetsFromRecords(normalized);
+        state.facetsInitialized = true;
+        renderAllFacetOptions();
+      }
+
+      if (!serverDidSlice) {
+        queryCache.set(`t:${BASE_RECTYPE}`, normalized);
+      }
+
+      updateHomeMetrics();
+    }
+
+    async function ensureCorpusLoaded(force = false) {
+      if (state.corpusLoaded && !force) {
+        return state.corpusRecords;
+      }
+      if (corpusPromise && !force) {
+        return corpusPromise;
+      }
+
+      state.corpusLoading = true;
+      state.corpusError = null;
+
+      const currentQ = buildHeuristQuery(state, state.facets).q;
+      if (currentQ === `t:${BASE_RECTYPE}` && state.records.length === 0) {
+        state.isLoading = true;
+        state.error = null;
+        renderResults();
+      }
+
+      corpusPromise = (async () => {
+        try {
+          const { normalized, serverTotal, serverDidSlice } =
+            await fetchHeuristRecords(
+              `t:${BASE_RECTYPE}`,
+              state.limit,
+              0,
+              undefined
+            );
+          applyBaseCorpusPayload(normalized, serverTotal, serverDidSlice);
+
+          const latestQuery = buildHeuristQuery(state, state.facets).q;
+          if (latestQuery === `t:${BASE_RECTYPE}` && state.offset === 0) {
+            state.totalCount = state.corpusTotal;
+            state.records = serverDidSlice
+              ? normalized
+              : normalized.slice(0, state.limit);
+            state.isLoading = false;
+            state.error = null;
+            statusBar.dataset.query = `t:${BASE_RECTYPE}`;
+            renderResults();
+          }
+
+          return normalized;
+        } catch (err) {
+          state.corpusLoading = false;
+          state.corpusError =
+            err && err.message
+              ? err.message
+              : "Erreur réseau lors de la connexion à l’API Heurist.";
+          corpusPromise = null;
+
+          const latestQuery = buildHeuristQuery(state, state.facets).q;
+          if (latestQuery === `t:${BASE_RECTYPE}` && state.records.length === 0) {
+            state.isLoading = false;
+            state.error = state.corpusError;
+            renderResults();
+          }
+          throw err;
+        }
+      })();
+
+      return corpusPromise;
+    }
+
+    async function drawRandomRecord() {
+      const token = ++activeRandomToken;
+      state.randomError = null;
+      state.randomLoading = true;
+      renderRandomView();
+
+      try {
+        if (!state.corpusLoaded) {
+          await ensureCorpusLoaded(Boolean(state.corpusError));
+        }
+        if (token !== activeRandomToken) return;
+
+        let chosen = null;
+        const pool = state.corpusRecords;
+        const total = state.corpusTotal || pool.length;
+
+        if (total > pool.length && total > 0) {
+          const randOffset = getRandomIndex(total, state.lastRandomOffset);
+          state.lastRandomOffset = randOffset;
+          const { normalized } = await fetchHeuristRecords(
+            `t:${BASE_RECTYPE}`,
+            1,
+            randOffset,
+            undefined
+          );
+          if (token !== activeRandomToken) return;
+          if (normalized.length > 0) {
+            chosen = normalized[0];
+          }
+        }
+
+        if (!chosen && pool.length > 0) {
+          const currentId = state.currentRandomRecord
+            ? state.currentRandomRecord.id
+            : null;
+          let remaining = pool.filter((r) => !state.drawnRandomIds.has(r.id));
+          if (remaining.length === 0) {
+            state.drawnRandomIds.clear();
+            remaining =
+              pool.length > 1 && currentId
+                ? pool.filter((r) => r.id !== currentId)
+                : pool;
+          }
+          const idx = getRandomIndex(remaining.length);
+          chosen = remaining[idx];
+          state.drawnRandomIds.add(chosen.id);
+        }
+
+        if (!chosen) {
+          throw new Error("Aucune fiche disponible dans le corpus t:102.");
+        }
+
+        state.currentRandomRecord = chosen;
+        state.randomDrawCount += 1;
+        state.randomLoading = false;
+        state.randomError = null;
+        renderRandomView();
+      } catch (err) {
+        if (token !== activeRandomToken) return;
+        state.randomLoading = false;
+        state.randomError =
+          err && err.message
+            ? err.message
+            : "Impossible de tirer une fiche aléatoire depuis Heurist.";
+        renderRandomView();
+      }
+    }
+
     async function executeSearch(options = {}) {
-      const { scrollTop = false } = options;
+      const { scrollTop = false, forceRetry = false } = options;
       const { q, humanQuery } = buildHeuristQuery(state, state.facets);
       statusBar.dataset.query = humanQuery;
 
+      const baseQuery = `t:${BASE_RECTYPE}`;
+
       // Si l'endpoint a déjà renvoyé la totalité des résultats non paginés pour cette requête q,
       // on découpe instantanément la tranche [offset, offset + limit] sans re-télécharger tout le flux.
-      const cachedFull = queryCache.get(q);
+      const cachedFull = !forceRetry ? queryCache.get(q) : null;
       if (cachedFull) {
         state.totalCount = cachedFull.length;
         state.records = cachedFull.slice(state.offset, state.offset + state.limit);
@@ -1867,6 +2456,34 @@
         return;
       }
 
+      if (q === baseQuery && state.offset === 0) {
+        if (state.corpusLoaded && !forceRetry) {
+          state.totalCount = state.corpusTotal;
+          state.records = state.corpusRecords.slice(0, state.limit);
+          state.isLoading = false;
+          state.error = null;
+          renderResults();
+          if (scrollTop) {
+            scrollIntoViewCleanly();
+          }
+          return;
+        }
+        if (corpusPromise || forceRetry) {
+          state.isLoading = true;
+          state.error = null;
+          renderResults();
+          try {
+            await ensureCorpusLoaded(forceRetry);
+            if (scrollTop) {
+              scrollIntoViewCleanly();
+            }
+            return;
+          } catch (_baseErr) {
+            return;
+          }
+        }
+      }
+
       if (activeAbortController) {
         activeAbortController.abort();
       }
@@ -1877,63 +2494,19 @@
       state.error = null;
       renderResults();
 
-      const params = new URLSearchParams();
-      params.set("db", config.db);
-      params.set("q", q);
-      params.set("limit", String(state.limit));
-      params.set("offset", String(state.offset));
-      params.set("format", "json");
-      params.set("extended", "2");
-
-      const requestUrl = `${config.recordOutputUrl}?${params.toString()}`;
-
       try {
-        const response = await fetch(requestUrl, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          signal
-        });
+        const { normalized, serverTotal, serverDidSlice } =
+          await fetchHeuristRecords(q, state.limit, state.offset, signal);
 
-        const rawText = await response.text();
-        let data;
-        try {
-          data = JSON.parse(rawText);
-        } catch (_parseErr) {
-          throw new Error(
-            `Réponse non JSON reçue depuis Heurist (HTTP ${response.status}).`
-          );
+        if (q === baseQuery && state.offset === 0 && !state.corpusLoaded) {
+          applyBaseCorpusPayload(normalized, serverTotal, serverDidSlice);
         }
-
-        if (!response.ok || data.error) {
-          const msg =
-            data.message?.replace(/<[^>]+>/g, " ").trim() ||
-            data.error ||
-            `Erreur HTTP ${response.status}`;
-          throw new Error(msg);
-        }
-
-        const { rawRecords, serverTotal } = extractRecordsFromResponse(data);
-        const normalized = rawRecords.map((r) => normalizeRecord(r, config));
-
-        // Initialiser les facettes sur le premier chargement du corpus complet (t:102)
-        if (!state.facetsInitialized && q === `t:${BASE_RECTYPE}`) {
-          state.facets = buildFacetsFromRecords(normalized);
-          state.facetsInitialized = true;
-          corpusBadge.textContent = `${normalized.length} fiches · t:${BASE_RECTYPE}`;
-          renderAllFacetOptions();
-        }
-
-        // Déterminer si le serveur a effectué la pagination ou renvoyé tout l'ensemble
-        const serverDidSlice =
-          serverTotal !== null &&
-          serverTotal > normalized.length &&
-          normalized.length <= state.limit;
 
         if (serverDidSlice) {
           state.totalCount = serverTotal;
           state.records = normalized;
         } else {
-          if (normalized.length > state.limit || q === `t:${BASE_RECTYPE}`) {
+          if (normalized.length > state.limit || q === baseQuery) {
             queryCache.set(q, normalized);
           }
           state.totalCount = normalized.length;
@@ -1969,6 +2542,138 @@
         block: "start"
       });
     }
+
+    function switchView(nextView, options = {}) {
+      if (!viewElements[nextView]) return;
+      const {
+        moveFocus = true,
+        focusTarget = null,
+        drawNewRandom = false,
+        scrollToTop = true
+      } = options;
+
+      if (state.view === "search" && nextView !== "search") {
+        closeAllManualPopovers(null);
+      }
+
+      state.view = nextView;
+
+      const applyViewDom = () => {
+        for (const [key, viewEl] of Object.entries(viewElements)) {
+          const active = key === state.view;
+          viewEl.classList.toggle("is-inactive", !active);
+          viewEl.setAttribute("aria-hidden", active ? "false" : "true");
+          if (active) {
+            viewEl.removeAttribute("inert");
+            viewEl.inert = false;
+            navButtons[key].setAttribute("aria-current", "page");
+          } else {
+            viewEl.setAttribute("inert", "");
+            viewEl.inert = true;
+            navButtons[key].removeAttribute("aria-current");
+          }
+        }
+        syncStatusLiveMode();
+      };
+
+      const finalizeFocus = () => {
+        if (scrollToTop && typeof root.getBoundingClientRect === "function") {
+          const rect = root.getBoundingClientRect();
+          if (rect.top < 0 && typeof root.scrollIntoView === "function") {
+            const reduced =
+              typeof window.matchMedia === "function" &&
+              window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            root.scrollIntoView({
+              behavior: reduced ? "auto" : "smooth",
+              block: "start"
+            });
+          }
+        }
+        if (!moveFocus) return;
+
+        if (focusTarget && typeof focusTarget.focus === "function") {
+          focusTarget.focus({ preventScroll: true });
+          if (focusTarget === searchInput && searchInput.value) {
+            searchInput.select();
+          }
+          return;
+        }
+
+        if (state.view === "home") {
+          homeHeading.focus({ preventScroll: true });
+        } else if (state.view === "search") {
+          searchInput.focus({ preventScroll: true });
+        } else if (state.view === "random") {
+          randomHeading.focus({ preventScroll: true });
+        }
+      };
+
+      const reducedMotion =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const navId = ++activeViewNavId;
+
+      if (!reducedMotion && typeof document.startViewTransition === "function") {
+        const vt = document.startViewTransition(() => {
+          applyViewDom();
+        });
+        vt.finished
+          .catch(() => {})
+          .finally(() => {
+            if (navId === activeViewNavId) {
+              finalizeFocus();
+            }
+          });
+      } else {
+        applyViewDom();
+        finalizeFocus();
+      }
+
+      if (state.view === "search") {
+        if (state.records.length === 0 && !state.isLoading) {
+          executeSearch({ forceRetry: Boolean(state.error) });
+        }
+      } else if (state.view === "random") {
+        if (drawNewRandom || (!state.currentRandomRecord && !state.randomLoading)) {
+          drawRandomRecord();
+        } else {
+          renderRandomView();
+        }
+      }
+    }
+
+    // --- Navigation entre les vues (Présentation / Recherche / Fiche aléatoire) ---
+    navHomeBtn.addEventListener("click", () => {
+      switchView("home", { moveFocus: true });
+    });
+
+    navSearchBtn.addEventListener("click", () => {
+      switchView("search", { moveFocus: true });
+    });
+
+    navRandomBtn.addEventListener("click", () => {
+      switchView("random", { moveFocus: true });
+    });
+
+    ctaSearchBtn.addEventListener("click", () => {
+      switchView("search", { moveFocus: true });
+    });
+
+    ctaRandomBtn.addEventListener("click", () => {
+      switchView("random", { moveFocus: true, drawNewRandom: true });
+    });
+
+    randomBackHomeBtn.addEventListener("click", () => {
+      switchView("home", { moveFocus: true });
+    });
+
+    randomGoSearchBtn.addEventListener("click", () => {
+      switchView("search", { moveFocus: true });
+    });
+
+    randomDrawBtn.addEventListener("click", () => {
+      drawRandomRecord();
+    });
 
     // --- Événements de recherche, pagination et raccourcis ---
     function triggerImmediateSearch() {
@@ -2056,10 +2761,14 @@
     bottomPag.prevBtn.addEventListener("click", () => goToPrevPage(true));
     bottomPag.nextBtn.addEventListener("click", () => goToNextPage(true));
 
-    // Raccourci clavier Ctrl + K / Cmd + K
+    // Raccourci clavier Ctrl + K / Cmd + K (bascule vers la recherche si nécessaire)
     document.addEventListener("keydown", (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        if (state.view !== "search") {
+          switchView("search", { moveFocus: true, focusTarget: searchInput });
+          return;
+        }
         searchInput.focus();
         if (searchInput.value) {
           searchInput.select();
@@ -2067,9 +2776,9 @@
       }
     });
 
-    // Lancement initial
+    // Lancement initial sur la page de présentation + préchargement silencieux du corpus
     renderAllFacetOptions();
-    executeSearch();
+    ensureCorpusLoaded().catch(() => {});
   }
 
   // --- Initialisation tolérante à l'injection dynamique dans Heurist CMS ---
