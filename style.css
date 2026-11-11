@@ -458,8 +458,8 @@
     color: var(--ab-text-secondary);
   }
 
-  /* Barre d'actions de la vue Fiche aléatoire */
-  #archibarthes-root .ab-random-toolbar {
+  /* Barres d'actions des vues Recherche et Fiche aléatoire */
+  #archibarthes-root :where(.ab-search-toolbar, .ab-random-toolbar) {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -471,14 +471,18 @@
     border-inline-start: 5px solid var(--ab-accent);
   }
 
-  #archibarthes-root .ab-random-info {
+  #archibarthes-root .ab-search-toolbar {
+    border-inline-start-color: var(--ab-text-primary);
+  }
+
+  #archibarthes-root :where(.ab-search-info, .ab-random-info) {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
     min-inline-size: 0;
   }
 
-  #archibarthes-root .ab-random-heading {
+  #archibarthes-root :where(.ab-search-heading, .ab-random-heading) {
     margin: 0;
     font-size: 1rem;
     font-weight: 800;
@@ -487,18 +491,18 @@
     color: var(--ab-text-strong);
   }
 
-  #archibarthes-root .ab-random-heading:focus {
+  #archibarthes-root :where(.ab-search-heading, .ab-random-heading):focus {
     outline: none;
   }
 
-  #archibarthes-root .ab-random-sub {
+  #archibarthes-root :where(.ab-search-sub, .ab-random-sub) {
     margin: 0;
     font-size: 0.825rem;
     color: var(--ab-text-secondary);
     font-variant-numeric: tabular-nums;
   }
 
-  #archibarthes-root .ab-random-actions {
+  #archibarthes-root :where(.ab-search-actions, .ab-random-actions) {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -867,7 +871,7 @@
     gap: 0.5rem;
   }
 
-  #archibarthes-root .ab-page-btn {
+  #archibarthes-root :where(.ab-page-btn, .ab-toolbar-btn) {
     appearance: none;
     display: inline-flex;
     align-items: center;
@@ -889,12 +893,19 @@
     transition: background-color 120ms ease, color 120ms ease;
   }
 
-  #archibarthes-root .ab-page-btn:hover:not(:disabled) {
-    background-color: var(--ab-text-primary);
-    color: var(--ab-text-inverse);
+  #archibarthes-root .ab-back-home-btn {
+    border-width: 2px;
+    font-weight: 800;
   }
 
-  #archibarthes-root .ab-page-btn:disabled {
+  @media (hover: hover) {
+    #archibarthes-root :where(.ab-page-btn, .ab-toolbar-btn):hover:not(:disabled) {
+      background-color: var(--ab-text-primary);
+      color: var(--ab-text-inverse);
+    }
+  }
+
+  #archibarthes-root :where(.ab-page-btn, .ab-toolbar-btn):disabled {
     border-color: var(--ab-border-subtle);
     color: var(--ab-text-secondary);
     background-color: var(--ab-bg-subtle);
@@ -1267,6 +1278,13 @@
     margin: 0;
     font-size: 0.9rem;
     color: var(--ab-text-secondary);
+  }
+
+  #archibarthes-root .ab-state-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
   }
 
   #archibarthes-root .ab-progress {
@@ -2057,7 +2075,7 @@
 
   /* Respect des préférences système */
   @media (prefers-reduced-motion: reduce) {
-    #archibarthes-root :where(.ab-nav-tab, .ab-cta-btn, .ab-random-draw-btn, .ab-nb-nav-btn, .ab-search-field, .ab-search-submit, .ab-filter-btn, .ab-filter-chevron, .ab-page-btn, .ab-fullscreen-btn, .ab-notice-link, .ab-option-row, .ab-checkbox::before) {
+    #archibarthes-root :where(.ab-nav-tab, .ab-cta-btn, .ab-random-draw-btn, .ab-nb-nav-btn, .ab-toolbar-btn, .ab-search-field, .ab-search-submit, .ab-filter-btn, .ab-filter-chevron, .ab-page-btn, .ab-fullscreen-btn, .ab-notice-link, .ab-option-row, .ab-checkbox::before) {
       transition: none !important;
     }
   }
@@ -2071,6 +2089,7 @@
     #archibarthes-root .ab-hero-aside,
     #archibarthes-root .ab-metric-card,
     #archibarthes-root .ab-pillar-card,
+    #archibarthes-root .ab-search-toolbar,
     #archibarthes-root .ab-random-toolbar,
     #archibarthes-root .ab-notebook-toolbar,
     #archibarthes-root .ab-notebook-desk,
@@ -2107,6 +2126,7 @@
     #archibarthes-root .ab-hero-eyebrow,
     #archibarthes-root .ab-nav-tab[aria-current="page"],
     #archibarthes-root .ab-cta-btn,
+    #archibarthes-root .ab-toolbar-btn,
     #archibarthes-root .ab-random-draw-btn,
     #archibarthes-root .ab-nb-nav-btn {
       border: 1px solid CanvasText;

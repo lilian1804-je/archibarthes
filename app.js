@@ -2,7 +2,7 @@
   "use strict";
 
   const ROOT_ID = "archibarthes-root";
-  const APP_VERSION = "1.3.0";
+  const APP_VERSION = "1.4.0";
   const DEFAULT_DB = "GF_Copie_EcoleCentrale";
   const BASE_RECTYPE = "102";
   const PAGE_LIMIT = 20;
@@ -1283,6 +1283,46 @@
     searchView.setAttribute("inert", "");
     searchView.inert = true;
 
+    const searchToolbar = document.createElement("div");
+    searchToolbar.className = "ab-search-toolbar";
+
+    const searchInfo = document.createElement("div");
+    searchInfo.className = "ab-search-info";
+
+    const searchHeading = document.createElement("h2");
+    searchHeading.id = "ab-search-heading";
+    searchHeading.className = "ab-search-heading";
+    searchHeading.tabIndex = -1;
+    searchHeading.textContent = "Recherche et filtres";
+
+    const searchSub = document.createElement("p");
+    searchSub.className = "ab-search-sub";
+    searchSub.textContent =
+      "Interrogation plein texte et facettes croisées sur le corpus t:102.";
+
+    searchInfo.append(searchHeading, searchSub);
+
+    const searchActions = document.createElement("div");
+    searchActions.className = "ab-search-actions";
+
+    const searchBackHomeBtn = document.createElement("button");
+    searchBackHomeBtn.type = "button";
+    searchBackHomeBtn.className = "ab-toolbar-btn ab-back-home-btn";
+    searchBackHomeBtn.textContent = "← Retour à l’accueil";
+
+    const searchToRandomBtn = document.createElement("button");
+    searchToRandomBtn.type = "button";
+    searchToRandomBtn.className = "ab-toolbar-btn ab-search-to-random-btn";
+    searchToRandomBtn.textContent = "Fiche aléatoire";
+
+    const searchToNotebookBtn = document.createElement("button");
+    searchToNotebookBtn.type = "button";
+    searchToNotebookBtn.className = "ab-toolbar-btn ab-search-to-notebook-btn";
+    searchToNotebookBtn.textContent = "Carnet de note";
+
+    searchActions.append(searchBackHomeBtn, searchToRandomBtn, searchToNotebookBtn);
+    searchToolbar.append(searchInfo, searchActions);
+
     // Moteur de recherche & filtres (<search>)
     const searchLandmark = document.createElement("search");
     searchLandmark.className = "ab-controls";
@@ -1506,7 +1546,13 @@
     const bottomPag = createPaginationNav("Pagination inférieure");
     bottomPagWrap.append(bottomPageText, bottomPag.nav);
 
-    searchView.append(searchLandmark, statusBar, resultsRegion, bottomPagWrap);
+    searchView.append(
+      searchToolbar,
+      searchLandmark,
+      statusBar,
+      resultsRegion,
+      bottomPagWrap
+    );
 
     // 2C. Vue 3 : Page Fiche générée aléatoirement (cachée et inerte au départ)
     const randomView = document.createElement("div");
@@ -2272,7 +2318,19 @@
         retryBtn.textContent = "Réessayer";
         retryBtn.addEventListener("click", () => executeSearch({ forceRetry: true }));
 
-        errBox.append(title, desc, retryBtn);
+        const errHomeBtn = document.createElement("button");
+        errHomeBtn.type = "button";
+        errHomeBtn.className = "ab-toolbar-btn ab-back-home-btn";
+        errHomeBtn.textContent = "← Retour à l’accueil";
+        errHomeBtn.addEventListener("click", () =>
+          switchView("home", { moveFocus: true })
+        );
+
+        const stateActions = document.createElement("div");
+        stateActions.className = "ab-state-actions";
+        stateActions.append(retryBtn, errHomeBtn);
+
+        errBox.append(title, desc, stateActions);
         resultsRegion.replaceChildren(errBox);
         return;
       }
@@ -2323,7 +2381,7 @@
       list.className = "ab-cards-list";
       const frag = document.createDocumentFragment();
       for (const rec of state.records) {
-        frag.appendChild(renderCard(rec, { titleTag: "h2", idPrefix: "s" }));
+        frag.appendChild(renderCard(rec, { titleTag: "h3", idPrefix: "s" }));
       }
       list.appendChild(frag);
       resultsRegion.replaceChildren(list);
@@ -3369,6 +3427,18 @@
     });
 
     ctaNotebookBtn.addEventListener("click", () => {
+      switchView("notebook", { moveFocus: true });
+    });
+
+    searchBackHomeBtn.addEventListener("click", () => {
+      switchView("home", { moveFocus: true });
+    });
+
+    searchToRandomBtn.addEventListener("click", () => {
+      switchView("random", { moveFocus: true });
+    });
+
+    searchToNotebookBtn.addEventListener("click", () => {
       switchView("notebook", { moveFocus: true });
     });
 
