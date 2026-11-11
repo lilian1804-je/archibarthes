@@ -2,6 +2,7 @@
   "use strict";
 
   const ROOT_ID = "archibarthes-root";
+  const APP_VERSION = "1.2.0";
   const DEFAULT_DB = "GF_Copie_EcoleCentrale";
   const BASE_RECTYPE = "102";
   const PAGE_LIMIT = 20;
@@ -970,8 +971,15 @@
   }
 
   function mountApp(root) {
-    if (!root || root.dataset.abMounted === "true") return;
+    if (!root) return;
+    if (
+      root.dataset.abMounted === "true" &&
+      root.dataset.abVersion === APP_VERSION
+    ) {
+      return;
+    }
     root.dataset.abMounted = "true";
+    root.dataset.abVersion = APP_VERSION;
 
     const config = resolveConfig(root);
     const isApplePlatform =
