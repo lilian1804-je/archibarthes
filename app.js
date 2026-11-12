@@ -2199,77 +2199,7 @@
       portraitCard.append(cornerBadge, frame, cap);
       hero.append(heroCopy, portraitCard);
 
-      // 2. 3 Cartes d'accès rapide
-      const quickSection = document.createElement("section");
-      quickSection.className = "ab-quick-section";
-      quickSection.setAttribute("aria-labelledby", "ab-quick-heading");
-
-      const quickLabel = document.createElement("h2");
-      quickLabel.id = "ab-quick-heading";
-      quickLabel.className = "ab-section-label";
-      quickLabel.textContent = "ACCÈS DIRECT AU CORPUS";
-
-      const quickGrid = document.createElement("div");
-      quickGrid.className = "ab-quick-grid";
-
-      const quickCardsData = [
-        {
-          num: "01",
-          mod: "ab-quick-card--01",
-          title: "Découverte aléatoire",
-          desc: "Ouvrir le carnet sur le bureau éditorial avec une fiche manuscrite tirée au hasard, puis feuilleter par ordre de cote.",
-          action: () => navigateTo("decouverte", { randomDraw: true })
-        },
-        {
-          num: "02",
-          mod: "ab-quick-card--02",
-          title: "Recherche par mots-clés",
-          desc: "Interroger en direct les transcriptions et notes critiques avec sensibilité à la casse [Aa] et accès rapide Ctrl+K.",
-          action: () => navigateTo("recherche", { focusTarget: "ab-search-input" })
-        },
-        {
-          num: "03",
-          mod: "ab-quick-card--03",
-          title: "Recherche par filtres",
-          desc: "Croiser chronologie (1968–1980), pays, lieux géographiques et personnes selon leur statut dans le corpus.",
-          action: () => navigateTo("recherche", { focusTarget: "ab-year-min" })
-        }
-      ];
-
-      for (const card of quickCardsData) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = `ab-quick-card ${card.mod}`;
-        btn.addEventListener("click", card.action);
-
-        const top = document.createElement("div");
-        top.className = "ab-quick-card-top";
-        const num = document.createElement("span");
-        num.className = "ab-quick-num";
-        num.textContent = card.num;
-        const arr = document.createElement("span");
-        arr.className = "ab-quick-arrow";
-        arr.setAttribute("aria-hidden", "true");
-        arr.textContent = "↗";
-        top.append(num, arr);
-
-        const body = document.createElement("div");
-        const title = document.createElement("h3");
-        title.className = "ab-quick-title";
-        title.textContent = card.title;
-        const desc = document.createElement("p");
-        desc.className = "ab-quick-desc";
-        desc.style.marginBlockStart = "0.5rem";
-        desc.textContent = card.desc;
-        body.append(title, desc);
-
-        btn.append(top, body);
-        quickGrid.appendChild(btn);
-      }
-
-      quickSection.append(quickLabel, quickGrid);
-
-      // 3. À propos du projet & équipe
+      // 2. À propos du projet & équipe
       const aboutSection = document.createElement("section");
       aboutSection.className = "ab-about-section";
       aboutSection.setAttribute("aria-labelledby", "ab-about-h2");
@@ -2343,7 +2273,7 @@
       aboutBox.append(aboutLeft, teamCol);
       aboutSection.appendChild(aboutBox);
 
-      shell.append(hero, quickSection, aboutSection);
+      shell.append(hero, aboutSection);
       return shell;
     }
 
@@ -2413,303 +2343,137 @@
 
       searchRow.append(searchLabel, searchWrap, caseBtn);
 
-      // Ligne 2 : 3 facettes (Chronologie | Lieux hiérarchique | Personnes statut)
-      const facetsGrid = document.createElement("div");
-      facetsGrid.className = "ab-facets-grid";
+      // Ligne 2 : Filtres simplifiés (Date | Lieu | Personne) en ligne
+      const filtersRow = document.createElement("div");
+      filtersRow.className = "ab-filters-row";
 
-      // Facette 1 : Chronologie double-slider
-      const dateCard = document.createElement("div");
-      dateCard.className = "ab-facet-card";
-      const dateHead = document.createElement("div");
-      dateHead.className = "ab-facet-head";
-      const dateLbl = document.createElement("span");
-      dateLbl.className = "ab-section-label";
-      dateLbl.textContent = "1. CHRONOLOGIE";
-      const dateReadout = document.createElement("span");
-      dateReadout.className = "ab-facet-readout";
-      dateReadout.textContent = `De ${f.startYear} à ${f.endYear}`;
-      dateHead.append(dateLbl, dateReadout);
+      // — Date : deux selects min/max —
+      const dateGroup = document.createElement("div");
+      dateGroup.className = "ab-filter-group";
+      const dateLbl = document.createElement("label");
+      dateLbl.className = "ab-filter-label";
+      dateLbl.textContent = "Date";
 
-      const rangeStage = document.createElement("div");
-      rangeStage.className = "ab-range-stage";
-
-      const rail = document.createElement("div");
-      rail.className = "ab-range-rail";
-      const fill = document.createElement("div");
-      fill.className = "ab-range-fill";
-      rail.appendChild(fill);
-
-      const minInput = document.createElement("input");
+      const minInput = document.createElement("select");
       minInput.id = "ab-year-min";
-      minInput.type = "range";
-      minInput.className = "ab-dual-range ab-dual-range--start";
-      minInput.min = String(state.bounds.minYear);
-      minInput.max = String(state.bounds.maxYear);
-      minInput.step = "1";
-      minInput.value = String(f.startYear);
+      minInput.className = "ab-filter-select";
       minInput.setAttribute("aria-label", "Année de début");
-
-      const maxInput = document.createElement("input");
+      const maxInput = document.createElement("select");
       maxInput.id = "ab-year-max";
-      maxInput.type = "range";
-      maxInput.className = "ab-dual-range ab-dual-range--end";
-      maxInput.min = String(state.bounds.minYear);
-      maxInput.max = String(state.bounds.maxYear);
-      maxInput.step = "1";
-      maxInput.value = String(f.endYear);
+      maxInput.className = "ab-filter-select";
       maxInput.setAttribute("aria-label", "Année de fin");
 
-      const syncSliderVisuals = () => {
-        const span = Math.max(1, state.bounds.maxYear - state.bounds.minYear);
-        const pctStart = ((f.startYear - state.bounds.minYear) / span) * 100;
-        const pctEnd = ((f.endYear - state.bounds.minYear) / span) * 100;
-        fill.style.setProperty("--ab-fill-start", `${pctStart}%`);
-        fill.style.setProperty("--ab-fill-end", `${pctEnd}%`);
-        minInput.setAttribute("aria-valuetext", `Année de début ${f.startYear}`);
-        maxInput.setAttribute("aria-valuetext", `Année de fin ${f.endYear}`);
-        dateReadout.textContent = `De ${f.startYear} à ${f.endYear}`;
-        // Évite le blocage si les deux curseurs se chevauchent sur la borne haute
-        if (f.startYear >= state.bounds.maxYear - 1) {
-          minInput.style.zIndex = "5";
-          maxInput.style.zIndex = "4";
-        } else {
-          minInput.style.zIndex = "3";
-          maxInput.style.zIndex = "4";
-        }
-      };
-      syncSliderVisuals();
+      for (let y = state.bounds.minYear; y <= state.bounds.maxYear; y++) {
+        const o1 = document.createElement("option");
+        o1.value = String(y);
+        o1.textContent = String(y);
+        if (y === f.startYear) o1.selected = true;
+        minInput.appendChild(o1);
+        const o2 = document.createElement("option");
+        o2.value = String(y);
+        o2.textContent = String(y);
+        if (y === f.endYear) o2.selected = true;
+        maxInput.appendChild(o2);
+      }
 
-      rangeStage.append(rail, minInput, maxInput);
-
-      const boundsRow = document.createElement("div");
-      boundsRow.className = "ab-range-bounds";
-      const bMin = document.createElement("span");
-      bMin.textContent = String(state.bounds.minYear);
-      const bMax = document.createElement("span");
-      bMax.textContent = String(state.bounds.maxYear);
-      boundsRow.append(bMin, bMax);
+      const dateSep = document.createElement("span");
+      dateSep.className = "ab-filter-sep";
+      dateSep.textContent = "–";
 
       const undatedLabel = document.createElement("label");
-      undatedLabel.className = "ab-check-inline";
+      undatedLabel.className = "ab-filter-undated";
       const undatedCb = document.createElement("input");
       undatedCb.type = "checkbox";
       undatedCb.checked = f.includeUndated;
+      undatedCb.setAttribute("aria-label", "Inclure fiches sans date");
       const undatedTxt = document.createElement("span");
-      undatedTxt.textContent = "Inclure les fiches sans date";
+      undatedTxt.textContent = "± s.d.";
+      undatedTxt.title = "Inclure les fiches sans date";
       undatedLabel.append(undatedCb, undatedTxt);
 
-      dateCard.append(dateHead, rangeStage, boundsRow, undatedLabel);
+      dateGroup.append(dateLbl, minInput, dateSep, maxInput, undatedLabel);
 
-      // Facette 2 : Lieux hiérarchique (Pays -> Lieu)
-      const placeCard = document.createElement("div");
-      placeCard.className = "ab-facet-card";
-      const placeHead = document.createElement("div");
-      placeHead.className = "ab-facet-head";
-      const placeLbl = document.createElement("span");
-      placeLbl.className = "ab-section-label";
-      placeLbl.textContent = "2. LIEUX (PAYS → LIEU)";
-      const placeCnt = document.createElement("span");
-      placeCnt.className = "ab-facet-readout";
-      placeCnt.textContent =
-        f.selectedCountries.size + f.selectedPlaces.size > 0
-          ? `${f.selectedCountries.size + f.selectedPlaces.size} actif(s)`
-          : `${catalog.places.length} lieux`;
-      placeHead.append(placeLbl, placeCnt);
+      // — Lieu : select simple —
+      const placeGroup = document.createElement("div");
+      placeGroup.className = "ab-filter-group";
+      const placeLbl = document.createElement("label");
+      placeLbl.className = "ab-filter-label";
+      placeLbl.htmlFor = "ab-place-select";
+      placeLbl.textContent = "Lieu";
 
-      const countryRow = document.createElement("div");
-      countryRow.className = "ab-pill-row";
-      for (const [paysName, count] of catalog.countries) {
-        const pBtn = document.createElement("button");
-        pBtn.type = "button";
-        pBtn.className = "ab-seg-btn ab-seg-btn--cyan";
-        const active = f.selectedCountries.has(paysName);
-        pBtn.setAttribute("aria-pressed", active ? "true" : "false");
-        const shortPays = paysName === "Non précisé / Transports" ? "Autres / Transports" : paysName;
-        pBtn.textContent = `${shortPays} (${count})`;
-        pBtn.addEventListener("click", () => {
-          if (f.selectedCountries.has(paysName)) {
-            f.selectedCountries.delete(paysName);
-          } else {
-            f.selectedCountries.add(paysName);
-          }
-          // Garde uniquement les lieux compatibles avec les pays cochés si sélection active
-          if (f.selectedCountries.size > 0) {
-            for (const plKey of Array.from(f.selectedPlaces)) {
-              const info = catalog.places.find((x) => x.key === plKey);
-              if (info && !f.selectedCountries.has(info.pays)) {
-                f.selectedPlaces.delete(plKey);
-              }
-            }
-          }
-          applyFilters();
-          refreshSearchResults();
-        });
-        countryRow.appendChild(pBtn);
+      const placeSelect = document.createElement("select");
+      placeSelect.id = "ab-place-select";
+      placeSelect.className = "ab-filter-select ab-filter-select--wide";
+      placeSelect.setAttribute("aria-label", "Filtrer par lieu");
+      const placeAll = document.createElement("option");
+      placeAll.value = "";
+      placeAll.textContent = "Tous les lieux";
+      placeSelect.appendChild(placeAll);
+      // placeCnt stub (keep reference for refreshSearchResults)
+      const placeCnt = { textContent: "" };
+      const countryRow = { querySelectorAll: () => [] };
+
+      for (const pl of catalog.places) {
+        const opt = document.createElement("option");
+        opt.value = pl.key;
+        opt.textContent = `${pl.label} (${pl.count})`;
+        if (f.selectedPlaces.has(pl.key)) opt.selected = true;
+        placeSelect.appendChild(opt);
       }
 
-      const placeSearchInput = document.createElement("input");
-      placeSearchInput.type = "search";
-      placeSearchInput.className = "ab-mini-filter";
-      placeSearchInput.placeholder = "Filtrer la liste des lieux…";
-      placeSearchInput.setAttribute("aria-label", "Filtrer les lieux disponibles");
-      placeSearchInput.value = f.placeFilterText;
+      placeGroup.append(placeLbl, placeSelect);
 
-      const placeList = document.createElement("div");
-      placeList.className = "ab-checklist";
+      // — Personne : select simple —
+      const personGroup = document.createElement("div");
+      personGroup.className = "ab-filter-group";
+      const personLbl = document.createElement("label");
+      personLbl.className = "ab-filter-label";
+      personLbl.htmlFor = "ab-person-select";
+      personLbl.textContent = "Personne";
 
-      const renderPlaceChecklist = () => {
-        placeList.replaceChildren();
-        const needle = normalizeLoose(f.placeFilterText);
-        const visiblePlaces = catalog.places.filter((pl) => {
-          if (f.selectedCountries.size > 0 && !f.selectedCountries.has(pl.pays)) return false;
-          if (needle && !normalizeLoose(pl.label).includes(needle)) return false;
-          return true;
-        });
+      const personSelect = document.createElement("select");
+      personSelect.id = "ab-person-select";
+      personSelect.className = "ab-filter-select ab-filter-select--wide";
+      personSelect.setAttribute("aria-label", "Filtrer par personne");
+      const personAll = document.createElement("option");
+      personAll.value = "";
+      personAll.textContent = "Toutes les personnes";
+      personSelect.appendChild(personAll);
+      // personCnt stub
+      const personCnt = { textContent: "" };
+      const statusRow = { querySelectorAll: () => [] };
+      const statusChoices = [];
 
-        if (visiblePlaces.length === 0) {
-          const empty = document.createElement("p");
-          empty.style.fontSize = "0.8rem";
-          empty.style.padding = "0.35rem";
-          empty.textContent = "Aucun lieu correspondant.";
-          placeList.appendChild(empty);
-          return;
-        }
-
-        for (const pl of visiblePlaces) {
-          const lbl = document.createElement("label");
-          lbl.className = "ab-check-item";
-          const left = document.createElement("span");
-          left.className = "ab-check-item-left";
-          const cb = document.createElement("input");
-          cb.type = "checkbox";
-          cb.checked = f.selectedPlaces.has(pl.key);
-          cb.addEventListener("change", () => {
-            if (cb.checked) f.selectedPlaces.add(pl.key);
-            else f.selectedPlaces.delete(pl.key);
-            applyFilters();
-            refreshSearchResults();
-          });
-          const txt = document.createElement("span");
-          txt.textContent = pl.label;
-          left.append(cb, txt);
-
-          const cnt = document.createElement("span");
-          cnt.className = "ab-check-count";
-          cnt.textContent = String(pl.count);
-          lbl.append(left, cnt);
-          placeList.appendChild(lbl);
-        }
-      };
-      renderPlaceChecklist();
-
-      placeCard.append(placeHead, countryRow, placeSearchInput, placeList);
-
-      // Facette 3 : Personnes (Statut : Tous / Artistes / Autres + liste multi-sélection)
-      const personCard = document.createElement("div");
-      personCard.className = "ab-facet-card";
-      const personHead = document.createElement("div");
-      personHead.className = "ab-facet-head";
-      const personLbl = document.createElement("span");
-      personLbl.className = "ab-section-label";
-      personLbl.textContent = "3. PERSONNES (STATUT → NOM)";
-      const personCnt = document.createElement("span");
-      personCnt.className = "ab-facet-readout";
-      personCnt.textContent =
-        f.selectedPersons.size > 0
-          ? `${f.selectedPersons.size} choisie(s)`
-          : `${catalog.persons.length} pers.`;
-      personHead.append(personLbl, personCnt);
-
-      const statusRow = document.createElement("div");
-      statusRow.className = "ab-pill-row";
-      const statusChoices = [
-        { id: "all", label: "Tous" },
-        { id: "artistes", label: "Artistes" },
-        { id: "autres", label: "Autres" }
-      ];
-      for (const st of statusChoices) {
-        const sBtn = document.createElement("button");
-        sBtn.type = "button";
-        sBtn.className = "ab-seg-btn";
-        sBtn.setAttribute("aria-pressed", f.personStatus === st.id ? "true" : "false");
-        sBtn.textContent = st.label;
-        sBtn.addEventListener("click", () => {
-          f.personStatus = st.id;
-          if (st.id !== "all") {
-            for (const pKey of Array.from(f.selectedPersons)) {
-              const info = catalog.persons.find((x) => x.key === pKey);
-              if (info && info.status !== st.id) f.selectedPersons.delete(pKey);
-            }
-          }
-          applyFilters();
-          refreshSearchResults();
-        });
-        statusRow.appendChild(sBtn);
+      for (const p of catalog.persons) {
+        const opt = document.createElement("option");
+        opt.value = p.key;
+        opt.textContent = `${p.label} (${p.count})`;
+        if (f.selectedPersons.has(p.key)) opt.selected = true;
+        personSelect.appendChild(opt);
       }
 
-      const personSearchInput = document.createElement("input");
-      personSearchInput.type = "search";
-      personSearchInput.className = "ab-mini-filter";
-      personSearchInput.placeholder = "Filtrer la liste des personnes…";
-      personSearchInput.setAttribute("aria-label", "Filtrer les personnes disponibles");
-      personSearchInput.value = f.personFilterText;
+      personGroup.append(personLbl, personSelect);
 
-      const personList = document.createElement("div");
-      personList.className = "ab-checklist";
+      // — Bouton réinitialiser —
+      const resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.className = "ab-filter-reset";
+      resetBtn.textContent = "Réinitialiser";
+      resetBtn.addEventListener("click", () => {
+        resetAllFilters();
+        renderApp();
+      });
 
-      const renderPersonChecklist = () => {
-        personList.replaceChildren();
-        const needle = normalizeLoose(f.personFilterText);
-        const visiblePersons = catalog.persons.filter((p) => {
-          if (f.personStatus !== "all" && p.status !== f.personStatus) return false;
-          if (needle && !normalizeLoose(p.label).includes(needle)) return false;
-          return true;
-        });
+      filtersRow.append(dateGroup, placeGroup, personGroup, resetBtn);
 
-        if (visiblePersons.length === 0) {
-          const empty = document.createElement("p");
-          empty.style.fontSize = "0.8rem";
-          empty.style.padding = "0.35rem";
-          empty.textContent = "Aucune personne correspondante.";
-          personList.appendChild(empty);
-          return;
-        }
-
-        for (const p of visiblePersons) {
-          const lbl = document.createElement("label");
-          lbl.className = "ab-check-item";
-          const left = document.createElement("span");
-          left.className = "ab-check-item-left";
-          const cb = document.createElement("input");
-          cb.type = "checkbox";
-          cb.checked = f.selectedPersons.has(p.key);
-          cb.addEventListener("change", () => {
-            if (cb.checked) f.selectedPersons.add(p.key);
-            else f.selectedPersons.delete(p.key);
-            applyFilters();
-            refreshSearchResults();
-          });
-          const txt = document.createElement("span");
-          txt.textContent = p.label;
-          left.append(cb, txt);
-
-          const cnt = document.createElement("span");
-          cnt.className = "ab-check-count";
-          cnt.textContent = String(p.count);
-          lbl.append(left, cnt);
-          personList.appendChild(lbl);
-        }
-      };
-      renderPersonChecklist();
-
-      personCard.append(personHead, statusRow, personSearchInput, personList);
-      facetsGrid.append(dateCard, placeCard, personCard);
-
-      // Barre des filtres actifs + réinitialisation
+      // Stubs pour compatibilité avec refreshSearchResults
+      const renderPlaceChecklist = () => {};
+      const renderPersonChecklist = () => {};
       const activeBar = document.createElement("div");
-      activeBar.className = "ab-active-filters";
+      activeBar.hidden = true;
+      const syncSliderVisuals = () => {};
 
-      deck.append(searchRow, facetsGrid, activeBar);
+      deck.append(searchRow, filtersRow, activeBar);
       shell.appendChild(deck);
 
       // Split Master (30%) / Detail (70%)
@@ -3223,31 +2987,10 @@
       };
 
       const refreshSearchResults = () => {
-        // Met à jour compteurs, pills actives, listes et résultats sans recréer les inputs focussés
-        placeCnt.textContent =
-          f.selectedCountries.size + f.selectedPlaces.size > 0
-            ? `${f.selectedCountries.size + f.selectedPlaces.size} actif(s)`
-            : `${catalog.places.length} lieux`;
-        personCnt.textContent =
-          f.selectedPersons.size > 0
-            ? `${f.selectedPersons.size} choisie(s)`
-            : `${catalog.persons.length} pers.`;
-
-        for (const btn of countryRow.querySelectorAll("button")) {
-          const name = btn.textContent.replace(/\s*\(\d+\)$/, "");
-          const realName = name === "Autres / Transports" ? "Non précisé / Transports" : name;
-          btn.setAttribute("aria-pressed", f.selectedCountries.has(realName) ? "true" : "false");
-        }
-        const statusBtns = statusRow.querySelectorAll("button");
-        statusChoices.forEach((st, i) => {
-          if (statusBtns[i]) {
-            statusBtns[i].setAttribute("aria-pressed", f.personStatus === st.id ? "true" : "false");
-          }
-        });
-
-        renderPlaceChecklist();
-        renderPersonChecklist();
-        renderActiveTags();
+        // Mise à jour compteur header
+        totalTag.textContent = state.corpusReady
+          ? `${state.filtered.length} / ${state.sortedCorpus.length} FICHES`
+          : "CHARGEMENT…";
         renderMasterList();
         renderDetailPane();
       };
@@ -3279,20 +3022,21 @@
         refreshSearchResults();
       });
 
-      minInput.addEventListener("input", () => {
+      // Listeners selects date
+      minInput.addEventListener("change", () => {
         const val = parseInt(minInput.value, 10);
         f.startYear = Math.min(val, f.endYear);
-        minInput.value = String(f.startYear);
-        syncSliderVisuals();
+        // Resync maxInput si nécessaire
+        for (const opt of maxInput.options) {
+          if (parseInt(opt.value, 10) === f.endYear) { opt.selected = true; break; }
+        }
         applyFilters();
         refreshSearchResults();
       });
 
-      maxInput.addEventListener("input", () => {
+      maxInput.addEventListener("change", () => {
         const val = parseInt(maxInput.value, 10);
         f.endYear = Math.max(val, f.startYear);
-        maxInput.value = String(f.endYear);
-        syncSliderVisuals();
         applyFilters();
         refreshSearchResults();
       });
@@ -3303,17 +3047,23 @@
         refreshSearchResults();
       });
 
-      placeSearchInput.addEventListener("input", () => {
-        f.placeFilterText = placeSearchInput.value;
-        renderPlaceChecklist();
+      // Listeners selects lieu / personne
+      placeSelect.addEventListener("change", () => {
+        f.selectedPlaces.clear();
+        f.selectedCountries.clear();
+        if (placeSelect.value) f.selectedPlaces.add(placeSelect.value);
+        applyFilters();
+        refreshSearchResults();
       });
 
-      personSearchInput.addEventListener("input", () => {
-        f.personFilterText = personSearchInput.value;
-        renderPersonChecklist();
+      personSelect.addEventListener("change", () => {
+        f.selectedPersons.clear();
+        f.personStatus = "all";
+        if (personSelect.value) f.selectedPersons.add(personSelect.value);
+        applyFilters();
+        refreshSearchResults();
       });
 
-      renderActiveTags();
       renderMasterList();
       renderDetailPane();
 

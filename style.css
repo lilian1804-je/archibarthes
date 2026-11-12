@@ -449,88 +449,7 @@
     color: var(--ab-ink-subtle);
   }
 
-  /* 3 Cartes d'acces rapide */
-  #archibarthes-root .ab-quick-section {
-    padding-block: clamp(2rem, 4vw, 2.75rem);
-    border-block-end: var(--ab-border);
-  }
-
-  #archibarthes-root .ab-quick-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1.25rem;
-    margin-block-start: 1rem;
-  }
-
-  #archibarthes-root .ab-quick-card {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1.35rem;
-    border: var(--ab-border);
-    box-shadow: var(--ab-shadow);
-    text-align: start;
-    cursor: pointer;
-    transition: transform 0.12s var(--ab-ease), box-shadow 0.12s var(--ab-ease);
-  }
-
-  #archibarthes-root .ab-quick-card--01 {
-    background-color: var(--ab-acid);
-  }
-
-  #archibarthes-root .ab-quick-card--02 {
-    background-color: var(--ab-lavender);
-  }
-
-  #archibarthes-root .ab-quick-card--03 {
-    background-color: var(--ab-cyan);
-  }
-
-  #archibarthes-root .ab-quick-card:hover {
-    transform: translate(-2px, -2px);
-    box-shadow: var(--ab-shadow-lg);
-  }
-
-  #archibarthes-root .ab-quick-card:active {
-    transform: translate(2px, 2px);
-    box-shadow: var(--ab-shadow-xs);
-  }
-
-  #archibarthes-root .ab-quick-card-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-  }
-
-  #archibarthes-root .ab-quick-num {
-    display: inline-block;
-    padding: 0.2rem 0.55rem;
-    background-color: var(--ab-bg);
-    border: var(--ab-border);
-    font-family: var(--ab-font-mono);
-    font-size: 0.8125rem;
-    font-weight: 800;
-  }
-
-  #archibarthes-root .ab-quick-arrow {
-    font-size: 1.25rem;
-    font-weight: 900;
-  }
-
-  #archibarthes-root .ab-quick-title {
-    font-size: 1.3rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    line-height: 1.15;
-  }
-
-  #archibarthes-root .ab-quick-desc {
-    font-size: 0.9375rem;
-    color: var(--ab-ink-muted);
-    line-height: 1.45;
-  }
+  /* Quick cards supprimées — règles retirées */
 
   /* A propos du projet */
   #archibarthes-root .ab-about-section {
@@ -626,14 +545,13 @@
   }
 
   #archibarthes-root .ab-filter-deck {
-    border: var(--ab-border);
+    border: 1px solid #d8d8d0;
     background-color: var(--ab-surface);
-    box-shadow: var(--ab-shadow);
-    padding: 1rem 1.1rem;
-    margin-block-end: 1.25rem;
+    padding: 0.85rem 1rem;
+    margin-block-end: 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.95rem;
+    gap: 0;
   }
 
   /* Ligne 1 : Barre mots-cles + bouton [Aa] */
@@ -712,37 +630,101 @@
     flex-shrink: 0;
   }
 
-  /* Ligne 2 : Grid 3 facettes (Chronologie | Lieux | Personnes) */
-  #archibarthes-root .ab-facets-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.85rem;
-  }
-
-  #archibarthes-root .ab-facet-card {
-    border: var(--ab-border);
-    background-color: var(--ab-bg);
-    padding: 0.8rem 0.9rem;
+  /* Barre de filtres simplifiée */
+  #archibarthes-root .ab-filters-row {
     display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1.25rem;
+    padding-block: 0.6rem;
+    border-block-start: 1px solid #e0e0d8;
   }
 
-  #archibarthes-root .ab-facet-head {
+  #archibarthes-root .ab-filter-group {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
+    gap: 0.4rem;
+    flex-wrap: nowrap;
   }
 
-  #archibarthes-root .ab-facet-readout {
-    font-family: var(--ab-font-mono);
-    font-size: 0.8rem;
+  #archibarthes-root .ab-filter-label {
+    font-size: 0.72rem;
     font-weight: 800;
-    background-color: var(--ab-acid);
-    border: var(--ab-border);
-    padding: 0.15rem 0.45rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--ab-ink-subtle);
+    white-space: nowrap;
+    flex-shrink: 0;
   }
+
+  #archibarthes-root .ab-filter-select {
+    min-block-size: 36px;
+    padding: 0.2rem 0.55rem;
+    border: 1.5px solid var(--ab-ink);
+    background-color: var(--ab-bg);
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: var(--ab-font);
+    cursor: pointer;
+    appearance: auto;
+  }
+
+  #archibarthes-root .ab-filter-select--wide {
+    max-inline-size: 240px;
+  }
+
+  #archibarthes-root .ab-filter-select:focus-visible {
+    outline: 2px solid var(--ab-ink);
+    outline-offset: 2px;
+    background-color: var(--ab-acid);
+  }
+
+  #archibarthes-root .ab-filter-sep {
+    font-weight: 700;
+    color: var(--ab-ink-subtle);
+    padding-inline: 0.1rem;
+  }
+
+  #archibarthes-root .ab-filter-undated {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    padding: 0.2rem 0.4rem;
+    border: 1px solid #ccc;
+    background: var(--ab-surface);
+  }
+
+  #archibarthes-root .ab-filter-undated:has(:checked) {
+    background-color: var(--ab-lavender);
+    border-color: var(--ab-ink);
+  }
+
+  #archibarthes-root .ab-filter-reset {
+    min-block-size: 36px;
+    padding: 0.2rem 0.75rem;
+    border: 1.5px solid var(--ab-ink);
+    background-color: var(--ab-surface);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--ab-ink-muted);
+    transition: background-color 0.1s;
+    margin-inline-start: auto;
+  }
+
+  #archibarthes-root .ab-filter-reset:hover {
+    background-color: #ffeaea;
+    color: var(--ab-ink);
+  }
+
+  /* Anciennes règles facettes (conservées pour compatibilité potentielle) */
+  #archibarthes-root .ab-facets-grid { display: none; }
+  #archibarthes-root .ab-facet-card { display: none; }
+  #archibarthes-root .ab-active-filters { display: none; }
 
   /* Double Range Slider (MWG compliant: separate WebKit / Firefox rules) */
   #archibarthes-root .ab-range-stage {
@@ -1803,8 +1785,13 @@
      RESPONSIVE BREAKPOINTS
      ========================================================= */
   @media (max-width: 1024px) {
-    #archibarthes-root .ab-facets-grid {
-      grid-template-columns: 1fr;
+    #archibarthes-root .ab-filters-row {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    #archibarthes-root .ab-filter-select--wide {
+      max-inline-size: 180px;
     }
 
     #archibarthes-root .ab-master-detail {
@@ -1841,9 +1828,12 @@
   @media (max-width: 860px) {
     #archibarthes-root .ab-hero,
     #archibarthes-root .ab-about-box,
-    #archibarthes-root .ab-quick-grid,
     #archibarthes-root .ab-methods-grid {
       grid-template-columns: 1fr;
+    }
+
+    #archibarthes-root .ab-filter-reset {
+      margin-inline-start: 0;
     }
   }
 
